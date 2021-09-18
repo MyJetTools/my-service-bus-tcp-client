@@ -8,7 +8,7 @@ use tokio::{
 };
 
 use crate::date_utils::MyDateTime;
-use crate::SocketContext;
+use crate::{MySbPublisher, SocketContext};
 
 pub enum MyServiceBusEvent<TcpContract> {
     Connect(i64),
@@ -23,6 +23,7 @@ pub struct MyServiceBusClient {
     connect_timeout: Duration,
     ping_timeout: Duration,
     packet_callback: Arc<mpsc::Sender<MyServiceBusEvent<TcpContract>>>,
+    publisher: Arc<MySbPublisher>,
 }
 
 impl MyServiceBusClient {
@@ -41,6 +42,7 @@ impl MyServiceBusClient {
             connect_timeout,
             ping_timeout,
             packet_callback: Arc::new(packet_callback),
+            publisher: Arc::new(MySbPublisher::new()),
         }
     }
 
@@ -52,7 +54,13 @@ impl MyServiceBusClient {
             self.ping_timeout,
             self.connect_timeout,
             self.packet_callback.clone(),
+            self.publisher.clone(),
         ));
+    }
+
+    pub async fn publish(&self, topic_id: &str, payload: Vec<u8>) -> Result<(), String> {
+        self.publisher.publish(topic_id, payload).await?;
+        Ok(())
     }
 }
 
@@ -63,6 +71,7 @@ async fn client_socket_loop(
     ping_timeout: Duration,
     connect_timeout: Duration,
     packet_callback: Arc<mpsc::Sender<MyServiceBusEvent<TcpContract>>>,
+    publisher: Arc<MySbPublisher>,
 ) {
     let mut socket_id = 0;
     loop {
@@ -87,6 +96,8 @@ async fn client_socket_loop(
                     println!("Can not send connect event to tcp mscp. Reason: {}", err); //TODO - Remove println!
                     continue;
                 }
+
+                publisher.connect(socket_ctx.clone()).await;
 
                 let read_task = tokio::task::spawn(socket_read_loop(
                     read_socket,
@@ -119,6 +130,8 @@ async fn client_socket_loop(
                     .as_ref()
                     .send(MyServiceBusEvent::Disconnect(socket_id))
                     .await;
+
+                publisher.disconnect().await;
 
                 if let Err(err) = disconnect_sent_result {
                     println!("Can not send disconnect event to tcp mscp. Reason: {}", err); //TODO - Remove println!
