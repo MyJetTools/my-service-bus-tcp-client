@@ -32,7 +32,7 @@ impl MyServiceBusClient {
     }
 
     pub fn start(&self) {
-        tokio::task::spawn(crate::tcp::client_socket_loop(
+        tokio::task::spawn(crate::tcp::new_connections::start(
             self.host_port.to_string(),
             self.app_name.to_string(),
             self.clinet_version.to_string(),
