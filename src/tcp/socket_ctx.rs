@@ -8,15 +8,17 @@ use tokio::{
 
 use crate::date_utils::MyDateTime;
 
-pub struct SocketContext {
+use super::SocketContextData;
+
+pub struct SocketConnection {
     pub data: RwLock<SocketContextData>,
-    pub socket_id: i64,
+    pub id: i64,
     pub attr: ConnectionAttributes,
 }
 const PROTOCOL_VERSION: i32 = 2;
 
-impl SocketContext {
-    pub fn new(socket_id: i64, write_socket: WriteHalf<TcpStream>) -> Self {
+impl SocketConnection {
+    pub fn new(id: i64, write_socket: WriteHalf<TcpStream>) -> Self {
         let mut attr = ConnectionAttributes {
             protocol_version: PROTOCOL_VERSION,
             versions: PacketVersions::new(),
@@ -26,7 +28,7 @@ impl SocketContext {
             .set_packet_version(my_service_bus_tcp_shared::tcp_message_id::NEW_MESSAGE, 1);
 
         Self {
-            socket_id,
+            id,
             attr,
             data: RwLock::new(SocketContextData::new(write_socket)),
         }
@@ -44,12 +46,7 @@ impl SocketContext {
 
     pub async fn disconnect(&self) {
         let mut write_access = self.data.write().await;
-
-        if !write_access.disconnected {
-            println!("Socket {} is disconnected", self.socket_id);
-            write_access.disconnected = true;
-            write_access.write_socket.shutdown();
-        }
+        write_access.disconnect(self.id).await;
     }
 
     pub async fn increase_read_size(&self, size: usize) {
@@ -62,13 +59,21 @@ impl SocketContext {
         write_access.last_read_time = MyDateTime::utc_now();
     }
 
+    pub async fn send_data_to_socket_and_forget(&self, payload: &[u8]) {
+        let result = self.send_data_to_socket(payload).await;
+
+        if let Err(err) = result {
+            println!("Can not send payload to socket {}. Reason {}", self.id, err);
+        }
+    }
+
     pub async fn send_data_to_socket(&self, payload: &[u8]) -> Result<(), String> {
         let mut write_access = self.data.write().await;
 
         if write_access.disconnected {
             return Err(format!(
                 "Can not write to socket {}. It's disconnected",
-                self.socket_id
+                self.id
             ));
         }
 
@@ -81,35 +86,12 @@ impl SocketContext {
                 return Ok(());
             }
             Err(err) => {
-                write_access.disconnected = true;
-                write_access.write_socket.shutdown();
+                write_access.disconnect(self.id).await;
                 return Err(format!(
                     "Can not write to socket {}. Reason: {:?}",
-                    self.socket_id, err
+                    self.id, err
                 ));
             }
-        }
-    }
-}
-
-pub struct SocketContextData {
-    pub write_socket: WriteHalf<TcpStream>,
-    pub last_write_time: MyDateTime,
-    pub last_read_time: MyDateTime,
-    pub read_size: usize,
-    pub write_size: usize,
-    pub disconnected: bool,
-}
-
-impl SocketContextData {
-    pub fn new(write_socket: WriteHalf<TcpStream>) -> Self {
-        Self {
-            write_socket,
-            last_write_time: MyDateTime::utc_now(),
-            last_read_time: MyDateTime::utc_now(),
-            disconnected: true,
-            read_size: 0,
-            write_size: 0,
         }
     }
 }

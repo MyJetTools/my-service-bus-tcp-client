@@ -1,43 +1,39 @@
-use tokio::sync::{
-    oneshot::{Receiver, Sender},
-    Mutex,
-};
+use tokio::sync::oneshot::{Receiver, Sender};
 
-use super::{TaskCompletionAwaiter, TaskEvent};
+use super::{CompletionEvent, TaskCompletionAwaiter};
 
-pub struct TaskCompletion<OkResult: Copy, ErrorResult: Copy> {
-    pub receiver: Option<Receiver<TaskEvent<OkResult, ErrorResult>>>,
-    pub sender: Mutex<Option<Sender<TaskEvent<OkResult, ErrorResult>>>>,
+pub struct TaskCompletion<OkResult, ErrorResult> {
+    pub receiver: Option<Receiver<CompletionEvent<OkResult, ErrorResult>>>,
+    pub sender: Option<Sender<CompletionEvent<OkResult, ErrorResult>>>,
 }
 
-impl<OkResult: Copy, ErrorResult: Copy> TaskCompletion<OkResult, ErrorResult> {
+impl<OkResult, ErrorResult> TaskCompletion<OkResult, ErrorResult> {
     pub fn new() -> Self {
         let (sender, receiver) = tokio::sync::oneshot::channel();
         Self {
             receiver: Some(receiver),
-            sender: Mutex::new(Some(sender)),
+            sender: Some(sender),
         }
     }
 
-    async fn get_sender(&self) -> Option<Sender<TaskEvent<OkResult, ErrorResult>>> {
-        let mut access = self.sender.lock().await;
+    fn get_sender(&mut self) -> Option<Sender<CompletionEvent<OkResult, ErrorResult>>> {
         let mut new_result = None;
-        std::mem::swap(&mut new_result, &mut access);
+        std::mem::swap(&mut new_result, &mut self.sender);
         new_result
     }
 
-    async fn get_receiver(&mut self) -> Option<Receiver<TaskEvent<OkResult, ErrorResult>>> {
+    fn get_receiver(&mut self) -> Option<Receiver<CompletionEvent<OkResult, ErrorResult>>> {
         let mut new_result = None;
         std::mem::swap(&mut new_result, &mut self.receiver);
         new_result
     }
 
-    pub async fn set_ok(&self, result: OkResult) -> Result<(), String> {
-        let sender = self.get_sender().await;
+    pub fn set_ok(&mut self, result: OkResult) -> Result<(), String> {
+        let sender = self.get_sender();
 
         match sender {
             Some(sender) => {
-                let result = sender.send(TaskEvent::Ok(result));
+                let result = sender.send(CompletionEvent::Ok(result));
                 if let Err(_) = result {
                     return Err(format!("Can not set Ok result to the task completion. "));
                 }
@@ -51,27 +47,24 @@ impl<OkResult: Copy, ErrorResult: Copy> TaskCompletion<OkResult, ErrorResult> {
         }
     }
 
-    pub async fn set_error(&self, result: ErrorResult) -> Result<(), String> {
-        let sender = self.get_sender().await;
+    pub fn set_error(&mut self, result: ErrorResult) {
+        let sender = self.get_sender();
 
         match sender {
             Some(sender) => {
-                let result = sender.send(TaskEvent::Error(result));
+                let result = sender.send(CompletionEvent::Error(result));
                 if let Err(_) = result {
-                    return Err(format!("Can not set Error result to the task completion. "));
+                    panic!("Can not set Error result to the task completion. ");
                 }
-                return Ok(());
             }
             None => {
-                return Err(format!(
-                    "You are trying to set error as a result for a second time"
-                ))
+                panic!("You are trying to set error as a result for a second time");
             }
         }
     }
 
-    pub async fn get_awaiter(&mut self) -> Option<TaskCompletionAwaiter<OkResult, ErrorResult>> {
-        let receiver = self.get_receiver().await?;
+    pub fn get_awaiter(&mut self) -> Option<TaskCompletionAwaiter<OkResult, ErrorResult>> {
+        let receiver = self.get_receiver()?;
         Some(TaskCompletionAwaiter::new(receiver))
     }
 }
