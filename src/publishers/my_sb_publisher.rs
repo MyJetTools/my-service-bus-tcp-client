@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
@@ -8,8 +8,6 @@ use super::{MySbPublisherData, PublishError, PublishProcessByConnection};
 
 pub struct MySbPublisher {
     data: Mutex<MySbPublisherData>,
-
-    pub topics_to_crate: HashMap<String, String>,
 }
 
 impl MySbPublisher {
@@ -17,7 +15,6 @@ impl MySbPublisher {
         let data = MySbPublisherData::new();
         Self {
             data: Mutex::new(data),
-            topics_to_crate: HashMap::new(),
         }
     }
     pub async fn publish(&self, topic_id: &str, payload: Vec<u8>) -> Result<(), PublishError> {

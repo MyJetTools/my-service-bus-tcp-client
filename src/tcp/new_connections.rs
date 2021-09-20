@@ -17,13 +17,13 @@ pub async fn start(
 ) {
     let mut socket_id = 0;
     loop {
+        tokio::time::sleep(connect_timeout).await;
+        socket_id += 1;
+
         let connect_result = TcpStream::connect(host_port.as_str()).await;
 
         match connect_result {
             Ok(tcp_stream) => {
-                tokio::time::sleep(connect_timeout).await;
-                socket_id += 1;
-
                 let (read_socket, write_socket) = io::split(tcp_stream);
 
                 let socket_connection = SocketConnection::new(socket_id, write_socket);
@@ -71,6 +71,7 @@ async fn process_new_connection(
         client_version.to_string(),
     ));
 
+    //TODO -проверить что если мы спаникуем выше - мы выскочим и отсюда тоже
     super::ping_loop::start_new(socket_connection.clone(), ping_timeout).await;
 
     let read_result = read_task.await;
