@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use crate::MySbPublisher;
 use tokio::net::TcpStream;
 
-use tokio::io;
+use tokio::io::{self, ReadHalf};
 
 use super::SocketConnection;
 
@@ -21,6 +21,7 @@ pub async fn start(
 
         match connect_result {
             Ok(tcp_stream) => {
+                tokio::time::sleep(connect_timeout).await;
                 socket_id += 1;
 
                 let (read_socket, write_socket) = io::split(tcp_stream);
@@ -29,33 +30,20 @@ pub async fn start(
 
                 let socket_connection = Arc::new(socket_connection);
 
-                super::incoming_events::connected(socket_connection.clone(), publisher.as_ref())
+                super::incoming_events::connected(socket_connection.clone(), publisher.clone())
                     .await;
 
-                let read_task = tokio::task::spawn(super::read_loop::start_new(
-                    read_socket,
+                process_new_connection(
                     socket_connection.clone(),
+                    ping_timeout,
+                    read_socket,
                     publisher.clone(),
-                    app_name.clone(),
-                    client_version.clone(),
-                ));
-
-                super::ping_loop::start_new(socket_connection.clone(), ping_timeout).await;
-
-                let read_result = read_task.await;
-
-                if let Err(err) = read_result {
-                    println!("We have error exiting the read loop for the client socket {}.  Reason: {:?}",
-                                        socket_id, err
-                                    );
-                    //TODO - Remove println!
-                }
-
-                super::incoming_events::disconnected(
-                    socket_connection.as_ref(),
-                    publisher.as_ref(),
+                    app_name.as_str(),
+                    client_version.as_str(),
                 )
                 .await;
+
+                super::incoming_events::disconnected(socket_connection, publisher.clone()).await;
             }
             Err(err) => {
                 println!(
@@ -64,7 +52,34 @@ pub async fn start(
                 ); //ToDo - Plug loggs
             }
         }
+    }
+}
 
-        tokio::time::sleep(connect_timeout).await;
+async fn process_new_connection(
+    socket_connection: Arc<SocketConnection>,
+    ping_timeout: Duration,
+    read_socket: ReadHalf<TcpStream>,
+    publisher: Arc<MySbPublisher>,
+    app_name: &str,
+    client_version: &str,
+) {
+    let read_task = tokio::task::spawn(super::read_loop::start_new(
+        read_socket,
+        socket_connection.clone(),
+        publisher.clone(),
+        app_name.to_string(),
+        client_version.to_string(),
+    ));
+
+    super::ping_loop::start_new(socket_connection.clone(), ping_timeout).await;
+
+    let read_result = read_task.await;
+
+    if let Err(err) = read_result {
+        println!(
+            "We have error exiting the read loop for the client socket {}.  Reason: {:?}",
+            socket_connection.id, err
+        );
+        //TODO - Remove println!
     }
 }
