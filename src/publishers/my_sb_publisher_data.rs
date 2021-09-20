@@ -91,13 +91,6 @@ impl MySbPublisherData {
             );
         }
 
-        let result = request.unwrap().set_ok(());
-
-        if let Err(err) = result {
-            panic!(
-                "We are handling publish confirmation for connection_id {} with request_id {}. We got error: {}",
-                 connection_id, request_id, err
-            );
-        }
+        request.unwrap().set_ok(());
     }
 }

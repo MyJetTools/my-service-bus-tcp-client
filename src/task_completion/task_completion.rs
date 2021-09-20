@@ -28,21 +28,18 @@ impl<OkResult, ErrorResult> TaskCompletion<OkResult, ErrorResult> {
         new_result
     }
 
-    pub fn set_ok(&mut self, result: OkResult) -> Result<(), String> {
+    pub fn set_ok(&mut self, result: OkResult) {
         let sender = self.get_sender();
 
         match sender {
             Some(sender) => {
                 let result = sender.send(CompletionEvent::Ok(result));
                 if let Err(_) = result {
-                    return Err(format!("Can not set Ok result to the task completion. "));
+                    panic!("Can not set Ok result to the task completion.");
                 }
-                return Ok(());
             }
             None => {
-                return Err(format!(
-                    "You are trying to set OK as a result for a second time"
-                ))
+                panic!("You are trying to set Ok as a result for a second time");
             }
         }
     }
