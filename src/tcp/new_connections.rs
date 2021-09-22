@@ -75,6 +75,7 @@ async fn process_new_connection(
     super::ping_loop::start_new(socket_connection.clone(), ping_timeout).await;
 
     let read_result = read_task.await;
+    socket_connection.disconnect().await;
 
     if let Err(err) = read_result {
         println!(

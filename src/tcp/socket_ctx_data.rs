@@ -20,7 +20,7 @@ impl SocketContextData {
             write_socket,
             last_write_time: MyDateTime::utc_now(),
             last_read_time: MyDateTime::utc_now(),
-            disconnected: true,
+            disconnected: false,
             read_size: 0,
             write_size: 0,
         }

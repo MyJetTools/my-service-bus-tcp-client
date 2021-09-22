@@ -46,6 +46,7 @@ pub async fn ping_loop(socket_connection: Arc<SocketConnection>, ping_timeout: D
                 "Can not send ping packet to the socket {}. Err:{}",
                 socket_connection.id, err
             );
+            socket_connection.disconnect().await;
             return;
         }
     }
