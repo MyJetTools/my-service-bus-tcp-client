@@ -60,8 +60,16 @@ impl<OkResult, ErrorResult> TaskCompletion<OkResult, ErrorResult> {
         }
     }
 
-    pub fn get_awaiter(&mut self) -> Option<TaskCompletionAwaiter<OkResult, ErrorResult>> {
-        let receiver = self.get_receiver()?;
-        Some(TaskCompletionAwaiter::new(receiver))
+    pub fn get_awaiter(&mut self) -> TaskCompletionAwaiter<OkResult, ErrorResult> {
+        let receiver = self.get_receiver();
+
+        match receiver {
+            Some(receiver) => {
+                return TaskCompletionAwaiter::new(receiver);
+            }
+            None => {
+                panic!("You are trying to get awaiter for the second time");
+            }
+        }
     }
 }

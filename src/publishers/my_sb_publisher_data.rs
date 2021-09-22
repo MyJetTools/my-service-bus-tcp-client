@@ -57,8 +57,7 @@ impl MySbPublisherData {
         }
 
         let mut task = TaskCompletion::new();
-        //Safety - I just created task. Awaiter is there;
-        let awaiter = task.get_awaiter().unwrap();
+        let awaiter = task.get_awaiter();
 
         connection.requests.insert(request_id, task);
 
