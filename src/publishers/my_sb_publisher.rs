@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
-use crate::tcp::SocketConnection;
+use crate::{TaskCompletion, task_completion::TaskCompletionAwaiter, tcp::SocketConnection};
 
 use super::{MySbPublisherData, PublishError, PublishProcessByConnection};
 
@@ -18,8 +18,11 @@ impl MySbPublishers {
         }
     }
     pub async fn publish(&self, topic_id: &str, payload: Vec<u8>) -> Result<(), PublishError> {
-        let mut write_access = self.data.lock().await;
-        let awaiter = write_access.publish_to_socket(topic_id, payload).await?;
+        let awaiter: TaskCompletionAwaiter<(), PublishError>;
+        {
+            let mut write_access = self.data.lock().await;
+            awaiter = write_access.publish_to_socket(topic_id, payload).await?;
+        }
         awaiter.get_result().await?;
 
         return Ok(());
