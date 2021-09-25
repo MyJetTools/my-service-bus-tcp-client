@@ -1,7 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::publishers::PublishError;
-use crate::MySbPublisher;
+use crate::subscribers::{MySbDeliveryPackage, MySbSubscribers};
+use crate::MySbPublishers;
+use my_service_bus_shared::queue::TopicQueueType;
+use tokio::sync::mpsc::UnboundedReceiver;
 
 pub struct MyServiceBusClient {
     host_port: String,
@@ -10,7 +13,8 @@ pub struct MyServiceBusClient {
     connect_timeout: Duration,
     ping_timeout: Duration,
 
-    publisher: Arc<MySbPublisher>,
+    publisher: Arc<MySbPublishers>,
+    subscribers: Arc<MySbSubscribers>,
 }
 
 impl MyServiceBusClient {
@@ -27,7 +31,8 @@ impl MyServiceBusClient {
             clinet_version: clinet_version.to_string(),
             connect_timeout,
             ping_timeout,
-            publisher: Arc::new(MySbPublisher::new()),
+            publisher: Arc::new(MySbPublishers::new()),
+            subscribers: Arc::new(MySbSubscribers::new()),
         }
     }
 
@@ -39,6 +44,7 @@ impl MyServiceBusClient {
             self.ping_timeout,
             self.connect_timeout,
             self.publisher.clone(),
+            self.subscribers.clone(),
         ));
     }
 
@@ -47,7 +53,21 @@ impl MyServiceBusClient {
         Ok(())
     }
 
-    pub async fn create_topic_if_not_exists(&mut self, topic_id: String) {
+    pub async fn create_topic_if_not_exists(&self, topic_id: String) {
         self.publisher.create_topic_if_not_exists(topic_id).await;
+    }
+
+    pub async fn subscribe(
+        &self,
+        topic_id: String,
+        queue_id: String,
+        queue_type: TopicQueueType,
+    ) -> UnboundedReceiver<MySbDeliveryPackage> {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.subscribers
+            .add(topic_id, queue_id, queue_type, tx)
+            .await;
+
+        rx
     }
 }

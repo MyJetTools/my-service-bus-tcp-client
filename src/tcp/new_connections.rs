@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::MySbPublisher;
+use crate::subscribers::MySbSubscribers;
+use crate::MySbPublishers;
 use tokio::net::TcpStream;
 
 use tokio::io::{self, ReadHalf};
@@ -13,7 +14,8 @@ pub async fn start(
     client_version: String,
     ping_timeout: Duration,
     connect_timeout: Duration,
-    publisher: Arc<MySbPublisher>,
+    publisher: Arc<MySbPublishers>,
+    subscribers: Arc<MySbSubscribers>,
 ) {
     let mut socket_id = 0;
     loop {
@@ -30,14 +32,19 @@ pub async fn start(
 
                 let socket_connection = Arc::new(socket_connection);
 
-                super::incoming_events::connected(socket_connection.clone(), publisher.clone())
-                    .await;
+                super::incoming_events::connected(
+                    socket_connection.clone(),
+                    publisher.clone(),
+                    subscribers.clone(),
+                )
+                .await;
 
                 process_new_connection(
                     socket_connection.clone(),
                     ping_timeout,
                     read_socket,
                     publisher.clone(),
+                    subscribers.clone(),
                     app_name.as_str(),
                     client_version.as_str(),
                 )
@@ -59,14 +66,16 @@ async fn process_new_connection(
     socket_connection: Arc<SocketConnection>,
     ping_timeout: Duration,
     read_socket: ReadHalf<TcpStream>,
-    publisher: Arc<MySbPublisher>,
+    publisher: Arc<MySbPublishers>,
+    subscribers: Arc<MySbSubscribers>,
     app_name: &str,
     client_version: &str,
 ) {
     let read_task = tokio::task::spawn(super::read_loop::start_new(
         read_socket,
         socket_connection.clone(),
-        publisher.clone(),
+        publisher,
+        subscribers,
         app_name.to_string(),
         client_version.to_string(),
     ));

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use my_service_bus_tcp_shared::TcpContract;
 
-use crate::MySbPublisher;
+use crate::MySbPublishers;
 
 use super::SocketConnection;
 
@@ -10,7 +10,7 @@ pub async fn send_init(
     socket_ctx: &SocketConnection,
     app_name: &str,
     client_version: &str,
-    publisher: &MySbPublisher,
+    publisher: &MySbPublishers,
 ) {
     send_greeting(socket_ctx, app_name, client_version).await;
     send_packet_versions(socket_ctx).await;

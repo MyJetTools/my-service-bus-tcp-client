@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use my_service_bus_tcp_shared::{SocketReader, TcpContract};
 
-use crate::MySbPublisher;
+use crate::subscribers::MySbSubscribers;
+use crate::MySbPublishers;
 use tokio::net::TcpStream;
 
 use tokio::io::ReadHalf;
@@ -12,7 +13,8 @@ use super::SocketConnection;
 pub async fn start_new(
     read_socket: ReadHalf<TcpStream>,
     socket_connection: Arc<SocketConnection>,
-    publisher: Arc<MySbPublisher>,
+    publisher: Arc<MySbPublishers>,
+    subscribers: Arc<MySbSubscribers>,
     app_name: String,
     client_version: String,
 ) {
@@ -42,6 +44,7 @@ pub async fn start_new(
                 super::incoming_events::new_packet(
                     socket_connection.as_ref(),
                     publisher.as_ref(),
+                    subscribers.as_ref(),
                     tcp_contract,
                 )
                 .await;

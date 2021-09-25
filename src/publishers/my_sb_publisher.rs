@@ -6,11 +6,11 @@ use crate::tcp::SocketConnection;
 
 use super::{MySbPublisherData, PublishError, PublishProcessByConnection};
 
-pub struct MySbPublisher {
+pub struct MySbPublishers {
     data: Mutex<MySbPublisherData>,
 }
 
-impl MySbPublisher {
+impl MySbPublishers {
     pub fn new() -> Self {
         let data = MySbPublisherData::new();
         Self {
@@ -30,7 +30,7 @@ impl MySbPublisher {
         write_access.confirm(connection_id, request_id).await;
     }
 
-    pub async fn connect(&self, ctx: Arc<SocketConnection>) {
+    pub async fn new_connection(&self, ctx: Arc<SocketConnection>) {
         let mut write_access = self.data.lock().await;
 
         if let Some(current_connection) = &write_access.connection {
