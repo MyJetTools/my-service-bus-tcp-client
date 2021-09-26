@@ -1,26 +1,40 @@
-use my_service_bus_shared::{queue_with_intervals::QueueWithIntervals, MessageId};
+use my_service_bus_shared::MessageId;
 use my_service_bus_tcp_shared::TcpContractMessage;
 
-pub struct MessagesReader {
-    pub messages: Vec<TcpContractMessage>,
+pub struct MySbMessage {
+    pub id: MessageId,
+    pub attempt_no: i32,
+    pub content: Vec<u8>,
+}
 
-    pub not_delivered: QueueWithIntervals,
+pub struct MessagesReader {
+    pub confirmation_id: i64,
+    pub messages: Vec<TcpContractMessage>,
 }
 
 impl MessagesReader {
-    pub fn new(messages: Vec<TcpContractMessage>) -> Self {
+    pub fn new(confirmation_id: i64, messages: Vec<TcpContractMessage>) -> Self {
         Self {
+            confirmation_id,
             messages,
-            not_delivered: QueueWithIntervals::new(),
         }
     }
-    pub fn not_delivered(&mut self, msg_id: MessageId) {
-        self.not_delivered.enqueue(msg_id);
-    }
+
+    pub fn iterate(&mut self) {}
 }
 
-impl Drop for MessagesReader {
-    fn drop(&mut self) {
-        todo!()
+impl Iterator for MessagesReader {
+    type Item = MySbMessage;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = self.messages.remove(0);
+
+        let result = MySbMessage {
+            id: result.id,
+            attempt_no: result.attempt_no,
+            content: result.content,
+        };
+
+        Some(result)
     }
 }

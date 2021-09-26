@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::subscribers::MySbSubscribers;
+use crate::subscribers::{ConfirmationSender, MySbDeliveryConfirmationEvent, MySbSubscribers};
 use crate::MySbPublishers;
 use tokio::net::TcpStream;
 
@@ -16,6 +16,7 @@ pub async fn start(
     connect_timeout: Duration,
     publisher: Arc<MySbPublishers>,
     subscribers: Arc<MySbSubscribers>,
+    confirmation_sender: Option<Arc<ConfirmationSender>>,
 ) {
     let mut socket_id = 0;
     loop {
@@ -31,6 +32,12 @@ pub async fn start(
                 let socket_connection = SocketConnection::new(socket_id, write_socket);
 
                 let socket_connection = Arc::new(socket_connection);
+
+                if let Some(confirmation_sender) = &confirmation_sender {
+                    confirmation_sender.send(MySbDeliveryConfirmationEvent::Connected(
+                        socket_connection.clone(),
+                    ))
+                }
 
                 super::incoming_events::connected(
                     socket_connection.clone(),
@@ -49,6 +56,12 @@ pub async fn start(
                     client_version.as_str(),
                 )
                 .await;
+
+                if let Some(confirmation_sender) = &confirmation_sender {
+                    confirmation_sender.send(MySbDeliveryConfirmationEvent::Disconnected(
+                        socket_connection.id,
+                    ))
+                }
 
                 super::incoming_events::disconnected(socket_connection, publisher.clone()).await;
             }

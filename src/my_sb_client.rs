@@ -1,10 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::publishers::PublishError;
-use crate::subscribers::{MySbDeliveryPackage, MySbSubscribers};
+use crate::subscribers::{MySbSubscribers, Subscriber};
 use crate::MySbPublishers;
 use my_service_bus_shared::queue::TopicQueueType;
-use tokio::sync::mpsc::UnboundedReceiver;
 
 pub struct MyServiceBusClient {
     host_port: String,
@@ -36,7 +35,9 @@ impl MyServiceBusClient {
         }
     }
 
-    pub fn start(&self) {
+    pub async fn start(&self) {
+        let (confirmation_tx, confirmation_rx) = self.subscribers.get_confirmation_pair().await;
+
         tokio::task::spawn(crate::tcp::new_connections::start(
             self.host_port.to_string(),
             self.app_name.to_string(),
@@ -45,7 +46,14 @@ impl MyServiceBusClient {
             self.connect_timeout,
             self.publisher.clone(),
             self.subscribers.clone(),
+            confirmation_tx,
         ));
+
+        if let Some(confirmations_receiver) = confirmation_rx {
+            tokio::task::spawn(crate::subscribers::my_sb_subscribers_loop::start(
+                confirmations_receiver,
+            ));
+        }
     }
 
     pub async fn publish(&self, topic_id: &str, payload: Vec<u8>) -> Result<(), PublishError> {
@@ -62,12 +70,13 @@ impl MyServiceBusClient {
         topic_id: String,
         queue_id: String,
         queue_type: TopicQueueType,
-    ) -> UnboundedReceiver<MySbDeliveryPackage> {
+    ) -> Subscriber {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         self.subscribers
-            .add(topic_id, queue_id, queue_type, tx)
+            .add(topic_id.clone(), queue_id.clone(), queue_type, tx)
             .await;
 
-        rx
+        let confirmaitions_sender = self.subscribers.get_confirmations_sender().await;
+        Subscriber::new(topic_id, queue_id, rx, confirmaitions_sender)
     }
 }

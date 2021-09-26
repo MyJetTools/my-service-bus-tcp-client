@@ -65,7 +65,7 @@ pub async fn new_packet(
             messages,
         } => {
             subscribers
-                .new_messages(topic_id, queue_id, confirmation_id, messages)
+                .new_messages(topic_id, queue_id, confirmation_id, connection.id, messages)
                 .await
         }
         _ => {}
