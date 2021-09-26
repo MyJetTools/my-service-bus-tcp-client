@@ -1,8 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
+use crate::logger::MySbLoggerReader;
 use crate::publishers::PublishError;
 use crate::subscribers::{MySbSubscribers, Subscriber};
-use crate::MySbPublishers;
+use crate::{MySbLogger, MySbPublishers};
 use my_service_bus_shared::queue::TopicQueueType;
 
 pub struct MyServiceBusClient {
@@ -14,6 +15,7 @@ pub struct MyServiceBusClient {
 
     publisher: Arc<MySbPublishers>,
     subscribers: Arc<MySbSubscribers>,
+    logger: Option<MySbLogger>,
 }
 
 impl MyServiceBusClient {
@@ -32,13 +34,22 @@ impl MyServiceBusClient {
             ping_timeout,
             publisher: Arc::new(MySbPublishers::new()),
             subscribers: Arc::new(MySbSubscribers::new()),
+            logger: Some(MySbLogger::new()),
         }
     }
 
-    pub async fn start(&self) {
+    pub async fn start(&mut self) {
+        let mut logger = None;
+        std::mem::swap(&mut logger, &mut self.logger);
+
+        if logger.is_none() {
+            panic!("Client is already started");
+        }
+
         let (confirmation_tx, confirmation_rx) = self.subscribers.get_confirmation_pair().await;
 
         tokio::task::spawn(crate::tcp::new_connections::start(
+            Arc::new(logger.unwrap()),
             self.host_port.to_string(),
             self.app_name.to_string(),
             self.clinet_version.to_string(),
@@ -78,5 +89,13 @@ impl MyServiceBusClient {
 
         let confirmaitions_sender = self.subscribers.get_confirmations_sender().await;
         Subscriber::new(topic_id, queue_id, rx, confirmaitions_sender)
+    }
+
+    pub fn get_logger_reader(&mut self) -> MySbLoggerReader {
+        if self.logger.is_none() {
+            panic!("Logger reader can not be extracted because client is already started");
+        }
+
+        self.logger.as_mut().unwrap().get_reader()
     }
 }

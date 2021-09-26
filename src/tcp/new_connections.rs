@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::subscribers::{ConfirmationSender, MySbDeliveryConfirmationEvent, MySbSubscribers};
-use crate::MySbPublishers;
+use crate::{MySbLogger, MySbPublishers};
 use tokio::net::TcpStream;
 
 use tokio::io::{self, ReadHalf};
@@ -9,6 +9,7 @@ use tokio::io::{self, ReadHalf};
 use super::SocketConnection;
 
 pub async fn start(
+    logger: Arc<MySbLogger>,
     host_port: String,
     app_name: String,
     client_version: String,
@@ -47,6 +48,7 @@ pub async fn start(
                 .await;
 
                 process_new_connection(
+                    logger.clone(),
                     socket_connection.clone(),
                     ping_timeout,
                     read_socket,
@@ -66,16 +68,22 @@ pub async fn start(
                 super::incoming_events::disconnected(socket_connection, publisher.clone()).await;
             }
             Err(err) => {
-                println!(
-                    "Can not connect to the socket {}. Err: {:?}",
-                    host_port, err
-                ); //ToDo - Plug loggs
+                logger.write_log(
+                    crate::logger::LogType::Error,
+                    "Connect loop".to_string(),
+                    format!(
+                        "Can not connect to the socket {}. Err: {:?}",
+                        host_port, err
+                    ),
+                    None,
+                );
             }
         }
     }
 }
 
 async fn process_new_connection(
+    logger: Arc<MySbLogger>,
     socket_connection: Arc<SocketConnection>,
     ping_timeout: Duration,
     read_socket: ReadHalf<TcpStream>,
@@ -93,17 +101,20 @@ async fn process_new_connection(
         client_version.to_string(),
     ));
 
-    //TODO -проверить что если мы спаникуем выше - мы выскочим и отсюда тоже
-    super::ping_loop::start_new(socket_connection.clone(), ping_timeout).await;
+    super::ping_loop::start_new(logger.clone(), socket_connection.clone(), ping_timeout).await;
 
     let read_result = read_task.await;
     socket_connection.disconnect().await;
 
     if let Err(err) = read_result {
-        println!(
-            "We have error exiting the read loop for the client socket {}.  Reason: {:?}",
-            socket_connection.id, err
+        logger.write_log(
+            crate::logger::LogType::Error,
+            format!("Connection process {}", socket_connection.id),
+            format!(
+                "We have error exiting the read loop for the client socket {}",
+                socket_connection.id,
+            ),
+            Some(format!("{:?}", err)),
         );
-        //TODO - Remove println!
     }
 }

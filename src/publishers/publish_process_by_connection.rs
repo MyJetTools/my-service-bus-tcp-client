@@ -1,6 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{tcp::SocketConnection, TaskCompletion};
+use rust_extensions::TaskCompletion;
+
+use crate::tcp::SocketConnection;
 
 use super::PublishError;
 

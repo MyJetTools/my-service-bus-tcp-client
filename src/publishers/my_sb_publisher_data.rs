@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use my_service_bus_tcp_shared::TcpContract;
-
-use crate::{task_completion::TaskCompletionAwaiter, TaskCompletion};
+use rust_extensions::{TaskCompletion, TaskCompletionAwaiter};
 
 use super::{PublishError, PublishProcessByConnection};
 

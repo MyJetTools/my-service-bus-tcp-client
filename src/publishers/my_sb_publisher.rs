@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
-use crate::{task_completion::TaskCompletionAwaiter, tcp::SocketConnection};
-
 use super::{MySbPublisherData, PublishError, PublishProcessByConnection};
+use crate::tcp::SocketConnection;
+use rust_extensions::TaskCompletionAwaiter;
 
 pub struct MySbPublishers {
     data: Mutex<MySbPublisherData>,

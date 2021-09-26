@@ -1,20 +1,28 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::date_utils::MyDateTime;
+use crate::{date_utils::MyDateTime, MySbLogger};
 
 use super::SocketConnection;
 
-pub async fn start_new(socket_connection: Arc<SocketConnection>, ping_timeout: Duration) {
+pub async fn start_new(
+    logger: Arc<MySbLogger>,
+    socket_connection: Arc<SocketConnection>,
+    ping_timeout: Duration,
+) {
     let ping_task = tokio::task::spawn(ping_loop(socket_connection.clone(), ping_timeout));
 
     let ping_result = ping_task.await;
 
     if let Err(err) = ping_result {
-        println!(
-            "We have error exiting the ping loop for the client socket {}.  Reason: {:?}",
-            socket_connection.id, err
+        logger.write_log(
+            crate::logger::LogType::FatalError,
+            format!("Socket Ping {}", socket_connection.id),
+            format!(
+                "We have error exiting the ping loop for the client socket {}.",
+                socket_connection.id
+            ),
+            Some(format!("{:?}", err)),
         );
-        //TODO - Remove println!
     }
 }
 

@@ -8,7 +8,7 @@ edition = "2018"
 [dependencies]
 my-service-bus-shared = { git = "https://github.com/MyJetTools/my-service-bus-shared.git" }
 my-service-bus-tcp-shared = { git = "https://github.com/MyJetTools/my-service-bus-tcp-shared.git" }
-
+rust-extensions = { git = "https://github.com/MyJetTools/rust-extensions.git" }
 
 tokio = { version = "*", features = ["full"] }
 tokio-util = "*"
