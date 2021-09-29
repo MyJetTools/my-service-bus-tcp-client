@@ -23,6 +23,7 @@ pub async fn start_new(
         app_name.as_str(),
         client_version.as_str(),
         publisher.as_ref(),
+        subscribers.as_ref(),
     )
     .await;
 

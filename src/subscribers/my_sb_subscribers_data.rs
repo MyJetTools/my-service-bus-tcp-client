@@ -11,6 +11,12 @@ use super::{
     MySbDeliveryPackage,
 };
 
+pub struct MySbSubscriber {
+    pub topic_id: String,
+    pub queue_id: String,
+    pub queue_type: TopicQueueType,
+}
+
 pub struct MySbSubscribersData {
     pub subscribers: HashMap<String, HashMap<String, SubscribeItem>>,
 
@@ -124,5 +130,21 @@ impl MySbSubscribersData {
         }
 
         return (self.confirmation_sender.clone(), new_result);
+    }
+
+    pub fn get_subscribers(&self) -> Vec<MySbSubscriber> {
+        let mut result = Vec::new();
+
+        for queues in self.subscribers.values() {
+            for (_, itm) in queues {
+                result.push(MySbSubscriber {
+                    topic_id: itm.topic_id.to_string(),
+                    queue_id: itm.queue_id.to_string(),
+                    queue_type: itm.queue_type,
+                });
+            }
+        }
+
+        result
     }
 }

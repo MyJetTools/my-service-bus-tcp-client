@@ -10,7 +10,8 @@ use tokio::sync::{
 use crate::tcp::SocketConnection;
 
 use super::{
-    ConfirmationSender, MySbDeliveryConfirmationEvent, MySbDeliveryPackage, MySbSubscribersData,
+    my_sb_subscribers_data::MySbSubscriber, ConfirmationSender, MySbDeliveryConfirmationEvent,
+    MySbDeliveryPackage, MySbSubscribersData,
 };
 
 pub struct MySbSubscribers {
@@ -65,5 +66,10 @@ impl MySbSubscribers {
     ) {
         let mut write_access = self.subscribers.lock().await;
         write_access.get_confirmation_pair()
+    }
+
+    pub async fn get_subscribers(&self) -> Vec<MySbSubscriber> {
+        let read_access = self.subscribers.lock().await;
+        read_access.get_subscribers()
     }
 }
