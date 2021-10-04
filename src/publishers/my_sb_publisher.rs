@@ -21,6 +21,23 @@ impl MySbPublishers {
         let awaiter: TaskCompletionAwaiter<(), PublishError>;
         {
             let mut write_access = self.data.lock().await;
+            awaiter = write_access
+                .publish_to_socket(topic_id, vec![payload])
+                .await?;
+        }
+        awaiter.get_result().await?;
+
+        return Ok(());
+    }
+
+    pub async fn publish_chunk(
+        &self,
+        topic_id: &str,
+        payload: Vec<Vec<u8>>,
+    ) -> Result<(), PublishError> {
+        let awaiter: TaskCompletionAwaiter<(), PublishError>;
+        {
+            let mut write_access = self.data.lock().await;
             awaiter = write_access.publish_to_socket(topic_id, payload).await?;
         }
         awaiter.get_result().await?;

@@ -72,6 +72,15 @@ impl MyServiceBusClient {
         Ok(())
     }
 
+    pub async fn publish_chunk(
+        &self,
+        topic_id: &str,
+        payload: Vec<Vec<u8>>,
+    ) -> Result<(), PublishError> {
+        self.publisher.publish_chunk(topic_id, payload).await?;
+        Ok(())
+    }
+
     pub async fn create_topic_if_not_exists(&self, topic_id: String) {
         self.publisher.create_topic_if_not_exists(topic_id).await;
     }

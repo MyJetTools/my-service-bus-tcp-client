@@ -28,7 +28,7 @@ impl MySbPublisherData {
     pub async fn publish_to_socket(
         &mut self,
         topic_id: &str,
-        payload: Vec<u8>,
+        payload: Vec<Vec<u8>>,
     ) -> Result<TaskCompletionAwaiter<(), PublishError>, PublishError> {
         if self.connection.is_none() {
             return Err(PublishError::NoConnectionToPublish);
@@ -40,7 +40,7 @@ impl MySbPublisherData {
         let payload = TcpContract::Publish {
             request_id,
             persist_immediately: false,
-            data_to_publish: vec![payload],
+            data_to_publish: payload,
             topic_id: topic_id.to_string(),
         };
 
