@@ -1,3 +1,5 @@
+use std::ptr::NonNull;
+
 use my_service_bus_shared::MessageId;
 use my_service_bus_tcp_shared::TcpContractMessage;
 
@@ -27,6 +29,10 @@ impl Iterator for MessagesReader {
     type Item = MySbMessage;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.messages.len() == 0 {
+            return None;
+        }
+
         let result = self.messages.remove(0);
 
         let result = MySbMessage {
