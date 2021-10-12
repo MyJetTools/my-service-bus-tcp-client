@@ -1,5 +1,3 @@
-use std::ptr::NonNull;
-
 use my_service_bus_shared::MessageId;
 use my_service_bus_tcp_shared::TcpContractMessage;
 
