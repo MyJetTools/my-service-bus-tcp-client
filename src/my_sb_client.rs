@@ -9,7 +9,7 @@ use my_service_bus_shared::queue::TopicQueueType;
 pub struct MyServiceBusClient {
     host_port: String,
     app_name: String,
-    clinet_version: String,
+    client_version: String,
     connect_timeout: Duration,
     ping_timeout: Duration,
 
@@ -22,14 +22,14 @@ impl MyServiceBusClient {
     pub fn new(
         host_port: &str,
         app_name: &str,
-        clinet_version: &str,
+        client_version: &str,
         connect_timeout: Duration,
         ping_timeout: Duration,
     ) -> Self {
         Self {
             host_port: host_port.to_string(),
             app_name: app_name.to_string(),
-            clinet_version: clinet_version.to_string(),
+            client_version: client_version.to_string(),
             connect_timeout,
             ping_timeout,
             publisher: Arc::new(MySbPublishers::new()),
@@ -52,7 +52,7 @@ impl MyServiceBusClient {
             Arc::new(logger.unwrap()),
             self.host_port.to_string(),
             self.app_name.to_string(),
-            self.clinet_version.to_string(),
+            self.client_version.to_string(),
             self.ping_timeout,
             self.connect_timeout,
             self.publisher.clone(),
