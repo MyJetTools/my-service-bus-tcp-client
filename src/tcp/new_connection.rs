@@ -26,7 +26,7 @@ async fn send_greeting(socket_ctx: &SocketConnection, app_name: &str, client_ver
         protocol_version: socket_ctx.attr.protocol_version,
     };
 
-    let payload = greeting.serialize(&socket_ctx.attr);
+    let payload = greeting.serialize();
     socket_ctx
         .send_data_to_socket_and_forget(payload.as_slice())
         .await;
@@ -37,7 +37,7 @@ async fn send_packet_versions(socket_ctx: &SocketConnection) {
     packet_versions.insert(my_service_bus_tcp_shared::tcp_message_id::NEW_MESSAGE, 1);
 
     let packet_versions = TcpContract::PacketVersions { packet_versions };
-    let payload = packet_versions.serialize(&socket_ctx.attr);
+    let payload = packet_versions.serialize();
 
     socket_ctx
         .send_data_to_socket_and_forget(payload.as_slice())
@@ -49,7 +49,7 @@ async fn create_topics_if_not_exists(socket_ctx: &SocketConnection, topics: Vec<
         let packet = TcpContract::CreateTopicIfNotExists { topic_id };
 
         socket_ctx
-            .send_data_to_socket_and_forget(packet.serialize(&socket_ctx.attr).as_slice())
+            .send_data_to_socket_and_forget(packet.serialize().as_slice())
             .await;
     }
 }
@@ -63,7 +63,7 @@ async fn subscribe_to_queues(socket_ctx: &SocketConnection, subscribers: &MySbSu
         };
 
         socket_ctx
-            .send_data_to_socket_and_forget(packet.serialize(&socket_ctx.attr).as_slice())
+            .send_data_to_socket_and_forget(packet.serialize().as_slice())
             .await;
     }
 }

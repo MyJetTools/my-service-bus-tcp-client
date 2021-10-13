@@ -57,7 +57,7 @@ async fn send_confirmation(connection: &SocketConnection, confirmation: MySbDeli
         };
 
         connection
-            .send_data_to_socket_and_forget(tcp_packet.serialize(&connection.attr).as_slice())
+            .send_data_to_socket_and_forget(tcp_packet.serialize().as_slice())
             .await;
     } else {
         let tcp_packet = TcpContract::NewMessagesConfirmation {
@@ -67,7 +67,7 @@ async fn send_confirmation(connection: &SocketConnection, confirmation: MySbDeli
         };
 
         connection
-            .send_data_to_socket_and_forget(tcp_packet.serialize(&connection.attr).as_slice())
+            .send_data_to_socket_and_forget(tcp_packet.serialize().as_slice())
             .await;
     }
 }

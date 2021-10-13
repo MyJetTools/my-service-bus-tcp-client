@@ -44,7 +44,7 @@ impl MySbPublisherData {
             topic_id: topic_id.to_string(),
         };
 
-        let payload = payload.serialize(&connection.socket.attr);
+        let payload = payload.serialize();
 
         let send_data_result = connection
             .socket

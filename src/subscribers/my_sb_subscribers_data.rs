@@ -68,7 +68,7 @@ impl MySbSubscribersData {
                     queue_type: itm.queue_type,
                 };
 
-                let payload = tcp_contract.serialize(&ctx.attr);
+                let payload = tcp_contract.serialize();
 
                 ctx.send_data_to_socket_and_forget(payload.as_slice()).await;
             }
