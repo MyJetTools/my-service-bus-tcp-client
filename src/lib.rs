@@ -2,7 +2,7 @@ mod date_utils;
 mod logger;
 mod my_sb_client;
 mod publishers;
-mod subscribers;
+pub mod subscribers;
 mod tcp;
 
 pub use logger::MySbLogger;
