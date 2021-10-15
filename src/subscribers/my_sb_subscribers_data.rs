@@ -1,10 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use my_service_bus_shared::queue::TopicQueueType;
-use my_service_bus_tcp_shared::{TcpContract, TcpContractMessage};
+use my_service_bus_tcp_shared::TcpContractMessage;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-
-use crate::tcp::SocketConnection;
 
 use super::{
     subscribe_item::SubscribeItem, ConfirmationSender, MySbDeliveryConfirmationEvent,
@@ -57,22 +55,6 @@ impl MySbSubscribersData {
         let item = SubscribeItem::new(topic_id, queue_id.to_string(), queue_type, tx);
 
         by_topic.insert(queue_id, item);
-    }
-
-    pub async fn new_connection(&self, ctx: Arc<SocketConnection>) {
-        for by_topic in self.subscribers.values() {
-            for itm in by_topic.values() {
-                let tcp_contract = TcpContract::Subscribe {
-                    topic_id: itm.topic_id.to_string(),
-                    queue_id: itm.queue_id.to_string(),
-                    queue_type: itm.queue_type,
-                };
-
-                let payload = tcp_contract.serialize();
-
-                ctx.send_data_to_socket_and_forget(payload.as_slice()).await;
-            }
-        }
     }
 
     pub fn new_messages(

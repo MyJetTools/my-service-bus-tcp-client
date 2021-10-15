@@ -7,8 +7,6 @@ use tokio::sync::{
     Mutex,
 };
 
-use crate::tcp::SocketConnection;
-
 use super::{
     my_sb_subscribers_data::MySbSubscriber, ConfirmationSender, MySbDeliveryConfirmationEvent,
     MySbDeliveryPackage, MySbSubscribersData,
@@ -34,11 +32,6 @@ impl MySbSubscribers {
     ) {
         let mut write_access = self.subscribers.lock().await;
         write_access.add(topic_id, queue_id, queue_type, tx);
-    }
-
-    pub async fn new_connection(&self, ctx: Arc<SocketConnection>) {
-        let read_access = self.subscribers.lock().await;
-        read_access.new_connection(ctx).await;
     }
 
     pub async fn new_messages(

@@ -40,12 +40,8 @@ pub async fn start(
                     ))
                 }
 
-                super::incoming_events::connected(
-                    socket_connection.clone(),
-                    publisher.clone(),
-                    subscribers.clone(),
-                )
-                .await;
+                super::incoming_events::connected(socket_connection.clone(), publisher.clone())
+                    .await;
 
                 process_new_connection(
                     logger.clone(),

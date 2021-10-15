@@ -6,14 +6,9 @@ use crate::{subscribers::MySbSubscribers, MySbPublishers};
 
 use super::SocketConnection;
 
-pub async fn connected(
-    connection: Arc<SocketConnection>,
-    publishers: Arc<MySbPublishers>,
-    subscribers: Arc<MySbSubscribers>,
-) {
+pub async fn connected(connection: Arc<SocketConnection>, publishers: Arc<MySbPublishers>) {
     let connection_id = connection.id;
-    let connected_result =
-        tokio::task::spawn(handle_connected(connection, publishers, subscribers)).await;
+    let connected_result = tokio::task::spawn(handle_connected(connection, publishers)).await;
 
     if let Err(err) = connected_result {
         println!(
@@ -23,13 +18,8 @@ pub async fn connected(
     }
 }
 
-async fn handle_connected(
-    connection: Arc<SocketConnection>,
-    publishers: Arc<MySbPublishers>,
-    subscribers: Arc<MySbSubscribers>,
-) {
+async fn handle_connected(connection: Arc<SocketConnection>, publishers: Arc<MySbPublishers>) {
     publishers.new_connection(connection.clone()).await;
-    subscribers.new_connection(connection).await;
 }
 
 pub async fn disconnected(connection: Arc<SocketConnection>, publisher: Arc<MySbPublishers>) {
