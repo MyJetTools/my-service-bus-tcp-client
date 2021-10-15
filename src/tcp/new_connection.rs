@@ -34,7 +34,7 @@ async fn send_greeting(socket_ctx: &SocketConnection, app_name: &str, client_ver
 
 async fn send_packet_versions(socket_ctx: &SocketConnection) {
     let mut packet_versions = HashMap::new();
-    packet_versions.insert(my_service_bus_tcp_shared::tcp_message_id::NEW_MESSAGE, 1);
+    packet_versions.insert(my_service_bus_tcp_shared::tcp_message_id::NEW_MESSAGES, 1);
 
     let packet_versions = TcpContract::PacketVersions { packet_versions };
     let payload = packet_versions.serialize();

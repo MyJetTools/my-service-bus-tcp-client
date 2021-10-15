@@ -25,7 +25,7 @@ impl SocketConnection {
         };
 
         attr.versions
-            .set_packet_version(my_service_bus_tcp_shared::tcp_message_id::NEW_MESSAGE, 1);
+            .set_packet_version(my_service_bus_tcp_shared::tcp_message_id::NEW_MESSAGES, 1);
 
         Self {
             id,
