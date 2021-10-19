@@ -8,7 +8,8 @@ mod subscribe_item;
 mod subscriber;
 pub use confirmation_sender::ConfirmationSender;
 pub use my_sb_channel_packages::{
-    MySbDeliveryConfirmation, MySbDeliveryConfirmationEvent, MySbDeliveryPackage,
+    IntermediaryDeliveredConfirmation, MySbDeliveryConfirmation, MySbDeliveryConfirmationEvent,
+    MySbDeliveryPackage,
 };
 pub use my_sb_subscribers::MySbSubscribers;
 pub use my_sb_subscribers_data::MySbSubscribersData;

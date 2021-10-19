@@ -6,6 +6,8 @@ use crate::{
     tcp::SocketConnection,
 };
 
+use super::IntermediaryDeliveredConfirmation;
+
 pub async fn start(mut confirmations_receiver: UnboundedReceiver<MySbDeliveryConfirmationEvent>) {
     let mut current_connection = None;
 
@@ -42,17 +44,37 @@ pub async fn start(mut confirmations_receiver: UnboundedReceiver<MySbDeliveryCon
                     }
                 }
             }
+            MySbDeliveryConfirmationEvent::IntermediaryDelivery(confirmation) => {
+                if let Some(connection) = &current_connection {
+                    if confirmation.connection_id == connection.id {
+                        send_intemediary_confirmation(connection.as_ref(), confirmation).await;
+                    }
+                }
+            }
         }
     }
 }
 
+async fn send_intemediary_confirmation(
+    connection: &SocketConnection,
+    confirmation: IntermediaryDeliveredConfirmation,
+) {
+    let tcp_packet = TcpContract::IntermediaryConfirm {
+        topic_id: confirmation.topic_id,
+        queue_id: confirmation.queue_id,
+        confirmation_id: confirmation.confirmation_id,
+        delivered: confirmation.delivered.get_snapshot(),
+        packet_version: 0, //ToDO - Check WTF
+    };
+}
+
 async fn send_confirmation(connection: &SocketConnection, confirmation: MySbDeliveryConfirmation) {
-    if let Some(not_delivered) = &confirmation.not_delivered {
-        let tcp_packet = TcpContract::ConfirmMessagesByNotDelivery {
+    if let Some(delivered) = &confirmation.not_delivered {
+        let tcp_packet = TcpContract::ConfirmSomeMessagesAsOk {
             topic_id: confirmation.topic_id,
             queue_id: confirmation.queue_id,
             confirmation_id: confirmation.confirmation_id,
-            not_delivered: not_delivered.get_snapshot(),
+            delivered: delivered.get_snapshot(),
             packet_version: 0, //ToDO - Check WTF
         };
 
