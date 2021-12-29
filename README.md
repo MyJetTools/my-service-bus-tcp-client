@@ -14,7 +14,7 @@ use my_service_bus_tcp_client::MyServiceBusClient;
 
 #[tokio::main]
 async fn main() {
-let mut my_sb_connection = MyServiceBusClient::new(
+    let mut my_sb_connection = MyServiceBusClient::new(
         "127.0.0.1:6421",
         "rust-test-app",
         "1.0.0",
@@ -22,15 +22,15 @@ let mut my_sb_connection = MyServiceBusClient::new(
         Duration::from_secs(3),
     );
     
-my_sb_connection.start().await;
+    my_sb_connection.start().await;
 
-let error = my_sb_connection
+    let error = my_sb_connection
                 .publish("rust-test", payload)
                 .await;
 
-            if let Err(err) = error {
-                println!("Publish error: {:?}", err);
-            }
+    if let Err(err) = error {
+       println!("Publish error: {:?}", err);
+    }
             
 }
 ```
