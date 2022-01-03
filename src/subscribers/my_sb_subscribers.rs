@@ -1,16 +1,11 @@
 use std::sync::Arc;
 
 use my_service_bus_shared::queue::TopicQueueType;
-use my_service_bus_tcp_shared::TcpContractMessage;
-use tokio::sync::{
-    mpsc::{UnboundedReceiver, UnboundedSender},
-    Mutex,
-};
+use my_service_bus_tcp_shared::{TcpContract, TcpContractMessage};
+use my_tcp_sockets::tcp_connection::SocketConnection;
+use tokio::sync::{mpsc::UnboundedSender, Mutex};
 
-use super::{
-    my_sb_subscribers_data::MySbSubscriber, ConfirmationSender, MySbDeliveryConfirmationEvent,
-    MySbDeliveryPackage, MySbSubscribersData,
-};
+use super::{my_sb_subscribers_data::MySbSubscriber, MySbDeliveryPackage, MySbSubscribersData};
 
 pub struct MySbSubscribers {
     subscribers: Mutex<MySbSubscribersData>,
@@ -39,26 +34,11 @@ impl MySbSubscribers {
         topic_id: String,
         queue_id: String,
         confirmation_id: i64,
-        connection_id: i64,
+        connection: Arc<SocketConnection<TcpContract>>,
         messages: Vec<TcpContractMessage>,
     ) {
         let read_access = self.subscribers.lock().await;
-        read_access.new_messages(topic_id, queue_id, confirmation_id, connection_id, messages);
-    }
-
-    pub async fn get_confirmations_sender(&self) -> Arc<ConfirmationSender> {
-        let mut write_access = self.subscribers.lock().await;
-        write_access.get_confirmations_sender()
-    }
-
-    pub async fn get_confirmation_pair(
-        &self,
-    ) -> (
-        Option<Arc<ConfirmationSender>>,
-        Option<UnboundedReceiver<MySbDeliveryConfirmationEvent>>,
-    ) {
-        let mut write_access = self.subscribers.lock().await;
-        write_access.get_confirmation_pair()
+        read_access.new_messages(topic_id, queue_id, confirmation_id, connection, messages);
     }
 
     pub async fn get_subscribers(&self) -> Vec<MySbSubscriber> {

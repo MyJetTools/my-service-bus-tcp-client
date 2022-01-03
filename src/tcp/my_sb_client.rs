@@ -1,70 +1,68 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
-use crate::logger::MySbLoggerReader;
 use crate::publishers::PublishError;
 use crate::subscribers::{MySbSubscribers, Subscriber};
-use crate::{MySbLogger, MySbPublishers};
+use crate::MySbPublishers;
+use my_logger::GetMyLoggerReader;
 use my_service_bus_shared::queue::TopicQueueType;
+use my_service_bus_tcp_shared::MySbTcpSerializer;
+use my_tcp_sockets::TcpClient;
+
+const TCP_CLIENT_NAME: &str = "MySbTcpClient";
 
 pub struct MyServiceBusClient {
-    host_port: String,
     app_name: String,
     client_version: String,
-    connect_timeout: Duration,
-    ping_timeout: Duration,
-
     publisher: Arc<MySbPublishers>,
     subscribers: Arc<MySbSubscribers>,
-    logger: Option<MySbLogger>,
+    tcp_client: TcpClient,
 }
 
 impl MyServiceBusClient {
-    pub fn new(
+    pub fn new(host_port: &str, app_name: &str, client_version: &str) -> Self {
+        Self {
+            app_name: app_name.to_string(),
+            client_version: client_version.to_string(),
+
+            publisher: Arc::new(MySbPublishers::new()),
+            subscribers: Arc::new(MySbSubscribers::new()),
+            tcp_client: TcpClient::new(TCP_CLIENT_NAME.to_string(), host_port.to_string()),
+        }
+    }
+
+    pub fn new_with_logger_reader<TGetMyLoggerReader: GetMyLoggerReader>(
         host_port: &str,
         app_name: &str,
         client_version: &str,
-        connect_timeout: Duration,
-        ping_timeout: Duration,
+        get_logger: &TGetMyLoggerReader,
     ) -> Self {
         Self {
-            host_port: host_port.to_string(),
             app_name: app_name.to_string(),
             client_version: client_version.to_string(),
-            connect_timeout,
-            ping_timeout,
+
             publisher: Arc::new(MySbPublishers::new()),
             subscribers: Arc::new(MySbSubscribers::new()),
-            logger: Some(MySbLogger::new()),
+            tcp_client: TcpClient::new_with_logger_reader(
+                TCP_CLIENT_NAME.to_string(),
+                host_port.to_string(),
+                get_logger,
+            ),
         }
     }
 
     pub async fn start(&mut self) {
-        let mut logger = None;
-        std::mem::swap(&mut logger, &mut self.logger);
+        let socket_events_reader = self.tcp_client.start(Arc::new(|| -> MySbTcpSerializer {
+            let attrs = super::new_connection_handler::get_connection_attrs();
+            MySbTcpSerializer::new(attrs)
+        }));
 
-        if logger.is_none() {
-            panic!("Client is already started");
-        }
-
-        let (confirmation_tx, confirmation_rx) = self.subscribers.get_confirmation_pair().await;
-
-        tokio::task::spawn(crate::tcp::new_connections::start(
-            Arc::new(logger.unwrap()),
-            self.host_port.to_string(),
-            self.app_name.to_string(),
-            self.client_version.to_string(),
-            self.ping_timeout,
-            self.connect_timeout,
+        tokio::task::spawn(super::incoming_events::start(
+            socket_events_reader,
             self.publisher.clone(),
             self.subscribers.clone(),
-            confirmation_tx,
+            self.app_name.clone(),
+            self.client_version.clone(),
         ));
-
-        if let Some(confirmations_receiver) = confirmation_rx {
-            tokio::task::spawn(crate::subscribers::my_sb_subscribers_loop::start(
-                confirmations_receiver,
-            ));
-        }
     }
 
     pub async fn publish(&self, topic_id: &str, payload: Vec<u8>) -> Result<(), PublishError> {
@@ -96,15 +94,13 @@ impl MyServiceBusClient {
             .add(topic_id.clone(), queue_id.clone(), queue_type, tx)
             .await;
 
-        let confirmaitions_sender = self.subscribers.get_confirmations_sender().await;
-        Subscriber::new(topic_id, queue_id, rx, confirmaitions_sender)
+        Subscriber::new(topic_id, queue_id, rx)
     }
 
-    pub fn get_logger_reader(&mut self) -> MySbLoggerReader {
-        if self.logger.is_none() {
-            panic!("Logger reader can not be extracted because client is already started");
-        }
-
-        self.logger.as_mut().unwrap().get_reader()
+    pub fn plug_logger<TGetMyLoggerReader: GetMyLoggerReader>(
+        &mut self,
+        get_logger: &TGetMyLoggerReader,
+    ) {
+        self.tcp_client.plug_logger(get_logger);
     }
 }

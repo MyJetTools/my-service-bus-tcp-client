@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
+use my_service_bus_tcp_shared::TcpContract;
+use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionId};
 use tokio::sync::Mutex;
 
 use super::{MySbPublisherData, PublishError, PublishProcessByConnection};
-use crate::tcp::SocketConnection;
 use rust_extensions::TaskCompletionAwaiter;
 
 pub struct MySbPublishers {
@@ -45,12 +46,12 @@ impl MySbPublishers {
         return Ok(());
     }
 
-    pub async fn publish_confirmed(&self, connection_id: i64, request_id: i64) {
+    pub async fn publish_confirmed(&self, connection_id: ConnectionId, request_id: i64) {
         let mut write_access = self.data.lock().await;
         write_access.confirm(connection_id, request_id).await;
     }
 
-    pub async fn new_connection(&self, ctx: Arc<SocketConnection>) {
+    pub async fn new_connection(&self, ctx: Arc<SocketConnection<TcpContract>>) {
         let mut write_access = self.data.lock().await;
 
         if let Some(current_connection) = &write_access.connection {
@@ -61,7 +62,7 @@ impl MySbPublishers {
         write_access.connection = Some(PublishProcessByConnection::new(ctx));
     }
 
-    pub async fn disconnect(&self, connection_id: i64) {
+    pub async fn disconnect(&self, connection_id: ConnectionId) {
         let mut write_access = self.data.lock().await;
 
         if let Some(current_connection) = &write_access.connection {

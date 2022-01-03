@@ -1,18 +1,18 @@
 use std::{collections::HashMap, sync::Arc};
 
+use my_service_bus_tcp_shared::TcpContract;
+use my_tcp_sockets::tcp_connection::SocketConnection;
 use rust_extensions::TaskCompletion;
-
-use crate::tcp::SocketConnection;
 
 use super::PublishError;
 
 pub struct PublishProcessByConnection {
-    pub socket: Arc<SocketConnection>,
+    pub socket: Arc<SocketConnection<TcpContract>>,
     pub requests: HashMap<i64, TaskCompletion<(), PublishError>>,
 }
 
 impl PublishProcessByConnection {
-    pub fn new(socket: Arc<SocketConnection>) -> Self {
+    pub fn new(socket: Arc<SocketConnection<TcpContract>>) -> Self {
         Self {
             requests: HashMap::new(),
             socket,

@@ -1,35 +1,10 @@
 use std::sync::Arc;
 
-use my_service_bus_shared::queue_with_intervals::QueueWithIntervals;
-use my_service_bus_tcp_shared::TcpContractMessage;
-
-use crate::tcp::SocketConnection;
+use my_service_bus_tcp_shared::{TcpContract, TcpContractMessage};
+use my_tcp_sockets::tcp_connection::SocketConnection;
 
 pub struct MySbDeliveryPackage {
     pub messages: Vec<TcpContractMessage>,
     pub confirmation_id: i64,
-    pub connection_id: i64,
-}
-
-pub enum MySbDeliveryConfirmationEvent {
-    Connected(Arc<SocketConnection>),
-    Disconnected(i64),
-    IntermediaryDelivery(IntermediaryDeliveredConfirmation),
-    Confirmation(MySbDeliveryConfirmation),
-}
-
-pub struct IntermediaryDeliveredConfirmation {
-    pub topic_id: String,
-    pub queue_id: String,
-    pub confirmation_id: i64,
-    pub connection_id: i64,
-    pub delivered: QueueWithIntervals,
-}
-
-pub struct MySbDeliveryConfirmation {
-    pub topic_id: String,
-    pub queue_id: String,
-    pub confirmation_id: i64,
-    pub connection_id: i64,
-    pub not_delivered: Option<QueueWithIntervals>,
+    pub connection: Arc<SocketConnection<TcpContract>>,
 }

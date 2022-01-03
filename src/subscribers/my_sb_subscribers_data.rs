@@ -1,13 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
 use my_service_bus_shared::queue::TopicQueueType;
-use my_service_bus_tcp_shared::TcpContractMessage;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use my_service_bus_tcp_shared::{TcpContract, TcpContractMessage};
+use my_tcp_sockets::tcp_connection::SocketConnection;
+use tokio::sync::mpsc::UnboundedSender;
 
-use super::{
-    subscribe_item::SubscribeItem, ConfirmationSender, MySbDeliveryConfirmationEvent,
-    MySbDeliveryPackage,
-};
+use super::{subscribe_item::SubscribeItem, MySbDeliveryPackage};
 
 pub struct MySbSubscriber {
     pub topic_id: String,
@@ -17,17 +15,12 @@ pub struct MySbSubscriber {
 
 pub struct MySbSubscribersData {
     pub subscribers: HashMap<String, HashMap<String, SubscribeItem>>,
-
-    confirmation_sender: Option<Arc<ConfirmationSender>>,
-    confirmation_receiver: Option<UnboundedReceiver<MySbDeliveryConfirmationEvent>>,
 }
 
 impl MySbSubscribersData {
     pub fn new() -> Self {
         Self {
             subscribers: HashMap::new(),
-            confirmation_sender: None,
-            confirmation_receiver: None,
         }
     }
 
@@ -62,7 +55,7 @@ impl MySbSubscribersData {
         topic_id: String,
         queue_id: String,
         confirmation_id: i64,
-        connection_id: i64,
+        connection: Arc<SocketConnection<TcpContract>>,
         messages: Vec<TcpContractMessage>,
     ) {
         let by_topic = self.subscribers.get(topic_id.as_str());
@@ -72,7 +65,7 @@ impl MySbSubscribersData {
                 let msg = MySbDeliveryPackage {
                     messages,
                     confirmation_id,
-                    connection_id,
+                    connection,
                 };
 
                 let result = subscriber.tx.send(msg);
@@ -82,36 +75,6 @@ impl MySbSubscribersData {
                 }
             }
         }
-    }
-
-    pub fn get_confirmations_sender(&mut self) -> Arc<ConfirmationSender> {
-        if let Some(confimations_sender) = &self.confirmation_sender {
-            return confimations_sender.clone();
-        }
-
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        self.confirmation_sender = Some(Arc::new(ConfirmationSender::new(tx)));
-
-        self.confirmation_receiver = Some(rx);
-
-        return self.confirmation_sender.as_ref().unwrap().clone();
-    }
-
-    pub fn get_confirmation_pair(
-        &mut self,
-    ) -> (
-        Option<Arc<ConfirmationSender>>,
-        Option<UnboundedReceiver<MySbDeliveryConfirmationEvent>>,
-    ) {
-        let mut new_result = None;
-        std::mem::swap(&mut new_result, &mut self.confirmation_receiver);
-
-        if new_result.is_none() {
-            return (None, None);
-        }
-
-        return (self.confirmation_sender.clone(), new_result);
     }
 
     pub fn get_subscribers(&self) -> Vec<MySbSubscriber> {
