@@ -41,6 +41,13 @@ impl MessagesReader {
             total_messages,
         }
     }
+
+    pub fn confirm_delivery(&mut self) {
+        if let Some(on_delivery) = self.on_delivery {
+            self.delivered.enqueue(on_delivery);
+            self.on_delivery = None;
+        }
+    }
 }
 
 impl Drop for MessagesReader {
@@ -81,11 +88,6 @@ impl Iterator for MessagesReader {
     type Item = MySbMessage;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(on_delivery) = self.on_delivery {
-            self.delivered.enqueue(on_delivery);
-            self.on_delivery = None;
-        }
-
         if self.messages.len() == 0 {
             return None;
         }
