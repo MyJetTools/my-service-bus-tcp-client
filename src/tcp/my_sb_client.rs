@@ -19,11 +19,10 @@ pub struct MyServiceBusClient {
 }
 
 impl MyServiceBusClient {
-    pub fn new(host_port: &str, app_name: &str, client_version: &str) -> Self {
+    pub fn new(host_port: &str, app_name: &str) -> Self {
         Self {
             app_name: app_name.to_string(),
-            client_version: client_version.to_string(),
-
+            client_version: get_client_version(),
             publisher: Arc::new(MySbPublishers::new()),
             subscribers: Arc::new(MySbSubscribers::new()),
             tcp_client: TcpClient::new(TCP_CLIENT_NAME.to_string(), host_port.to_string()),
@@ -33,13 +32,11 @@ impl MyServiceBusClient {
     pub fn new_with_logger_reader<TGetMyLoggerReader: GetMyLoggerReader>(
         host_port: &str,
         app_name: &str,
-        client_version: &str,
         get_logger: &TGetMyLoggerReader,
     ) -> Self {
         Self {
             app_name: app_name.to_string(),
-            client_version: client_version.to_string(),
-
+            client_version: get_client_version(),
             publisher: Arc::new(MySbPublishers::new()),
             subscribers: Arc::new(MySbSubscribers::new()),
             tcp_client: TcpClient::new_with_logger_reader(
@@ -103,4 +100,8 @@ impl MyServiceBusClient {
     ) {
         self.tcp_client.plug_logger(get_logger);
     }
+}
+
+fn get_client_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }
