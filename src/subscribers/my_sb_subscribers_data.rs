@@ -1,10 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use my_service_bus_shared::queue::TopicQueueType;
-use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessage};
-use my_tcp_sockets::tcp_connection::SocketConnection;
 
-use super::{subscriber::Subscriber, MySbDeliveryPackage, SubscriberCallback};
+use super::{subscriber::Subscriber, SubscriberCallback};
 
 pub struct MySbSubscriber {
     pub topic_id: String,
@@ -54,6 +52,19 @@ impl MySbSubscribersData {
         by_topic.insert(queue_id, item);
     }
 
+    pub fn get_callback(
+        &self,
+        topic_id: &str,
+        queue_id: &str,
+    ) -> Option<Arc<dyn SubscriberCallback + Sync + Send + 'static>> {
+        let by_topic = self.subscribers.get(topic_id)?;
+
+        let subscriber = by_topic.get(queue_id)?;
+
+        return Some(subscriber.callback.clone());
+    }
+
+    /*
     pub async fn new_messages(
         &self,
         topic_id: String,
@@ -80,6 +91,8 @@ impl MySbSubscribersData {
             }
         }
     }
+
+     */
 
     pub fn get_subscribers(&self) -> Vec<MySbSubscriber> {
         let mut result = Vec::new();

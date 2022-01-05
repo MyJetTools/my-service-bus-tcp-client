@@ -5,7 +5,9 @@ use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessa
 use my_tcp_sockets::tcp_connection::SocketConnection;
 use tokio::sync::Mutex;
 
-use super::{my_sb_subscribers_data::MySbSubscriber, MySbSubscribersData, SubscriberCallback};
+use super::{
+    my_sb_subscribers_data::MySbSubscriber, MessagesReader, MySbSubscribersData, SubscriberCallback,
+};
 
 pub struct MySbSubscribers {
     subscribers: Mutex<MySbSubscribersData>,
@@ -37,10 +39,23 @@ impl MySbSubscribers {
         connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
         messages: Vec<TcpContractMessage>,
     ) {
-        let read_access = self.subscribers.lock().await;
-        read_access
-            .new_messages(topic_id, queue_id, confirmation_id, connection, messages)
-            .await;
+        let callback = {
+            let read_access = self.subscribers.lock().await;
+            read_access.get_callback(topic_id.as_str(), queue_id.as_str())
+        };
+
+        if let Some(callback) = callback {
+            tokio::spawn(async move {
+                let messages_reader =
+                    MessagesReader::new(topic_id, queue_id, messages, confirmation_id, connection);
+
+                let result = callback.new_events(messages_reader).await;
+
+                if let Err(err) = result {
+                    print!("Send Error: {}", err)
+                }
+            });
+        }
     }
 
     pub async fn get_subscribers(&self) -> Vec<MySbSubscriber> {
