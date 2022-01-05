@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use my_service_bus_tcp_shared::TcpContract;
+use my_service_bus_tcp_shared::{MessageToPublishTcpContract, TcpContract};
 use my_tcp_sockets::ConnectionId;
 use rust_extensions::{TaskCompletion, TaskCompletionAwaiter};
+
+use crate::tcp::MessageToPublish;
 
 use super::{PublishError, PublishProcessByConnection};
 
@@ -29,7 +31,7 @@ impl MySbPublisherData {
     pub async fn publish_to_socket(
         &mut self,
         topic_id: &str,
-        payload: Vec<Vec<u8>>,
+        messages: Vec<MessageToPublish>,
     ) -> Result<TaskCompletionAwaiter<(), PublishError>, PublishError> {
         if self.connection.is_none() {
             return Err(PublishError::NoConnectionToPublish);
@@ -38,16 +40,23 @@ impl MySbPublisherData {
 
         let connection = self.connection.as_mut().unwrap();
 
+        let mut data_to_publish = Vec::new();
+
+        for msg in messages {
+            data_to_publish.push(MessageToPublishTcpContract {
+                headers: msg.headers,
+                content: msg.content,
+            })
+        }
+
         let payload = TcpContract::Publish {
             request_id,
             persist_immediately: false,
-            data_to_publish: payload,
+            data_to_publish,
             topic_id: topic_id.to_string(),
         };
 
-        let payload = payload.serialize();
-
-        if !connection.socket.send_bytes(payload.as_slice()).await {
+        if !connection.socket.send(payload).await {
             return Err(PublishError::Other(format!(
                 "Can not send data to connection {}",
                 connection.socket.id,

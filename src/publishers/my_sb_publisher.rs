@@ -4,6 +4,8 @@ use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionId};
 use tokio::sync::Mutex;
 
+use crate::tcp::MessageToPublish;
+
 use super::{MySbPublisherData, PublishError, PublishProcessByConnection};
 use rust_extensions::TaskCompletionAwaiter;
 
@@ -18,12 +20,16 @@ impl MySbPublishers {
             data: Mutex::new(data),
         }
     }
-    pub async fn publish(&self, topic_id: &str, payload: Vec<u8>) -> Result<(), PublishError> {
+    pub async fn publish(
+        &self,
+        topic_id: &str,
+        message: MessageToPublish,
+    ) -> Result<(), PublishError> {
         let awaiter: TaskCompletionAwaiter<(), PublishError>;
         {
             let mut write_access = self.data.lock().await;
             awaiter = write_access
-                .publish_to_socket(topic_id, vec![payload])
+                .publish_to_socket(topic_id, vec![message])
                 .await?;
         }
         awaiter.get_result().await?;
@@ -34,12 +40,12 @@ impl MySbPublishers {
     pub async fn publish_chunk(
         &self,
         topic_id: &str,
-        payload: Vec<Vec<u8>>,
+        messages: Vec<MessageToPublish>,
     ) -> Result<(), PublishError> {
         let awaiter: TaskCompletionAwaiter<(), PublishError>;
         {
             let mut write_access = self.data.lock().await;
-            awaiter = write_access.publish_to_socket(topic_id, payload).await?;
+            awaiter = write_access.publish_to_socket(topic_id, messages).await?;
         }
         awaiter.get_result().await?;
 

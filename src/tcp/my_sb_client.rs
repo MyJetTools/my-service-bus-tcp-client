@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::publishers::PublishError;
@@ -18,6 +19,11 @@ pub struct MyServiceBusClient {
     pub publishers: Arc<MySbPublishers>,
     pub subscribers: Arc<MySbSubscribers>,
     pub tcp_client: TcpClient,
+}
+
+pub struct MessageToPublish {
+    pub headers: Option<HashMap<String, String>>,
+    pub content: Vec<u8>,
 }
 
 impl MyServiceBusClient {
@@ -59,17 +65,21 @@ impl MyServiceBusClient {
         );
     }
 
-    pub async fn publish(&self, topic_id: &str, payload: Vec<u8>) -> Result<(), PublishError> {
-        self.publishers.publish(topic_id, payload).await?;
+    pub async fn publish(
+        &self,
+        topic_id: &str,
+        message: MessageToPublish,
+    ) -> Result<(), PublishError> {
+        self.publishers.publish(topic_id, message).await?;
         Ok(())
     }
 
     pub async fn publish_chunk(
         &self,
         topic_id: &str,
-        payload: Vec<Vec<u8>>,
+        messages: Vec<MessageToPublish>,
     ) -> Result<(), PublishError> {
-        self.publishers.publish_chunk(topic_id, payload).await?;
+        self.publishers.publish_chunk(topic_id, messages).await?;
         Ok(())
     }
 

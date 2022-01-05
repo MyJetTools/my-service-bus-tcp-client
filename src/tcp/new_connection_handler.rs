@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use my_service_bus_tcp_shared::{
-    ConnectionAttributes, MySbTcpSerializer, PacketVersions, TcpContract,
-};
+use my_service_bus_tcp_shared::{ConnectionAttributes, MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::tcp_connection::SocketConnection;
 
 use crate::{subscribers::MySbSubscribers, MySbPublishers};
@@ -31,7 +29,7 @@ async fn send_greeting(
         protocol_version: PROTOCOL_VERSION,
     };
 
-    let payload = greeting.serialize();
+    let payload = greeting.serialize(PROTOCOL_VERSION);
     socket_ctx.send_bytes(payload.as_slice()).await;
 }
 
@@ -40,7 +38,7 @@ async fn send_packet_versions(socket_ctx: &SocketConnection<TcpContract, MySbTcp
     packet_versions.insert(my_service_bus_tcp_shared::tcp_message_id::NEW_MESSAGES, 1);
 
     let packet_versions = TcpContract::PacketVersions { packet_versions };
-    let payload = packet_versions.serialize();
+    let payload = packet_versions.serialize(PROTOCOL_VERSION);
 
     socket_ctx.send_bytes(payload.as_slice()).await;
 }
@@ -52,7 +50,9 @@ async fn create_topics_if_not_exists(
     for topic_id in topics {
         let packet = TcpContract::CreateTopicIfNotExists { topic_id };
 
-        socket_ctx.send_bytes(packet.serialize().as_slice()).await;
+        socket_ctx
+            .send_bytes(packet.serialize(PROTOCOL_VERSION).as_slice())
+            .await;
     }
 }
 
@@ -67,17 +67,16 @@ async fn subscribe_to_queues(
             queue_type: subscriber.queue_type,
         };
 
-        socket_ctx.send_bytes(packet.serialize().as_slice()).await;
+        socket_ctx
+            .send_bytes(packet.serialize(PROTOCOL_VERSION).as_slice())
+            .await;
     }
 }
 
 const PROTOCOL_VERSION: i32 = 2;
 
 pub fn get_connection_attrs() -> ConnectionAttributes {
-    let mut attr = ConnectionAttributes {
-        protocol_version: PROTOCOL_VERSION,
-        versions: PacketVersions::new(),
-    };
+    let mut attr = ConnectionAttributes::new(PROTOCOL_VERSION);
 
     attr.versions
         .set_packet_version(my_service_bus_tcp_shared::tcp_message_id::NEW_MESSAGES, 1);
