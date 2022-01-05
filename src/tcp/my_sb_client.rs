@@ -47,7 +47,7 @@ impl MyServiceBusClient {
         }
     }
 
-    pub async fn start(&mut self) {
+    pub async fn start(&self) {
         let socket_events_reader = self.tcp_client.start(Arc::new(|| -> MySbTcpSerializer {
             let attrs = super::new_connection_handler::get_connection_attrs();
             MySbTcpSerializer::new(attrs)
