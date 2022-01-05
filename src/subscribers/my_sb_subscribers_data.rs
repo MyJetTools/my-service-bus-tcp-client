@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use my_service_bus_shared::queue::TopicQueueType;
-use my_service_bus_tcp_shared::{TcpContract, TcpContractMessage};
+use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessage};
 use my_tcp_sockets::tcp_connection::SocketConnection;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -55,7 +55,7 @@ impl MySbSubscribersData {
         topic_id: String,
         queue_id: String,
         confirmation_id: i64,
-        connection: Arc<SocketConnection<TcpContract>>,
+        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
         messages: Vec<TcpContractMessage>,
     ) {
         let by_topic = self.subscribers.get(topic_id.as_str());

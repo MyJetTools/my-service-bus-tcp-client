@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
-use my_service_bus_tcp_shared::{ConnectionAttributes, PacketVersions, TcpContract};
+use my_service_bus_tcp_shared::{
+    ConnectionAttributes, MySbTcpSerializer, PacketVersions, TcpContract,
+};
 use my_tcp_sockets::tcp_connection::SocketConnection;
 
 use crate::{subscribers::MySbSubscribers, MySbPublishers};
 
 pub async fn send_init(
-    connection: &SocketConnection<TcpContract>,
+    connection: &SocketConnection<TcpContract, MySbTcpSerializer>,
     app_name: &str,
     client_version: &str,
     publisher: &MySbPublishers,
@@ -20,7 +22,7 @@ pub async fn send_init(
 }
 
 async fn send_greeting(
-    socket_ctx: &SocketConnection<TcpContract>,
+    socket_ctx: &SocketConnection<TcpContract, MySbTcpSerializer>,
     app_name: &str,
     client_version: &str,
 ) {
@@ -33,7 +35,7 @@ async fn send_greeting(
     socket_ctx.send_bytes(payload.as_slice()).await;
 }
 
-async fn send_packet_versions(socket_ctx: &SocketConnection<TcpContract>) {
+async fn send_packet_versions(socket_ctx: &SocketConnection<TcpContract, MySbTcpSerializer>) {
     let mut packet_versions = HashMap::new();
     packet_versions.insert(my_service_bus_tcp_shared::tcp_message_id::NEW_MESSAGES, 1);
 
@@ -44,7 +46,7 @@ async fn send_packet_versions(socket_ctx: &SocketConnection<TcpContract>) {
 }
 
 async fn create_topics_if_not_exists(
-    socket_ctx: &SocketConnection<TcpContract>,
+    socket_ctx: &SocketConnection<TcpContract, MySbTcpSerializer>,
     topics: Vec<String>,
 ) {
     for topic_id in topics {
@@ -55,7 +57,7 @@ async fn create_topics_if_not_exists(
 }
 
 async fn subscribe_to_queues(
-    socket_ctx: &SocketConnection<TcpContract>,
+    socket_ctx: &SocketConnection<TcpContract, MySbTcpSerializer>,
     subscribers: &MySbSubscribers,
 ) {
     for subscriber in subscribers.get_subscribers().await {

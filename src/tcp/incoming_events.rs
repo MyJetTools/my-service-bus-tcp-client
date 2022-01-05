@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use my_service_bus_tcp_shared::TcpContract;
+use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::tcp_connection::{ConnectionCallback, ConnectionEvent, SocketConnection};
 
 use crate::{subscribers::MySbSubscribers, MySbPublishers};
 
 pub async fn start(
-    mut socket_events_reader: ConnectionCallback<TcpContract>,
+    mut socket_events_reader: ConnectionCallback<TcpContract, MySbTcpSerializer>,
     publishers: Arc<MySbPublishers>,
     subscribers: Arc<MySbSubscribers>,
     app_name: String,
@@ -44,7 +44,7 @@ pub async fn start(
 }
 
 pub async fn connected(
-    connection: Arc<SocketConnection<TcpContract>>,
+    connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
     app_name: String,
     client_version: String,
     publishers: Arc<MySbPublishers>,
@@ -69,7 +69,7 @@ pub async fn connected(
 }
 
 async fn handle_connected(
-    connection: Arc<SocketConnection<TcpContract>>,
+    connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
     app_name: String,
     client_version: String,
     publishers: Arc<MySbPublishers>,
@@ -87,7 +87,7 @@ async fn handle_connected(
 }
 
 pub async fn disconnected(
-    connection: Arc<SocketConnection<TcpContract>>,
+    connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
     publishers: Arc<MySbPublishers>,
 ) {
     let connection_id = connection.id;
@@ -102,14 +102,14 @@ pub async fn disconnected(
 }
 
 async fn handle_disconnected(
-    connection: Arc<SocketConnection<TcpContract>>,
+    connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
     publishers: Arc<MySbPublishers>,
 ) {
     publishers.disconnect(connection.id).await;
 }
 
 pub async fn new_packet(
-    connection: &Arc<SocketConnection<TcpContract>>,
+    connection: &Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
     publishers: &MySbPublishers,
     subscribers: &MySbSubscribers,
     contract: TcpContract,

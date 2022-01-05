@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use my_service_bus_shared::queue::TopicQueueType;
-use my_service_bus_tcp_shared::{TcpContract, TcpContractMessage};
+use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessage};
 use my_tcp_sockets::tcp_connection::SocketConnection;
 use tokio::sync::{mpsc::UnboundedSender, Mutex};
 
@@ -34,7 +34,7 @@ impl MySbSubscribers {
         topic_id: String,
         queue_id: String,
         confirmation_id: i64,
-        connection: Arc<SocketConnection<TcpContract>>,
+        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
         messages: Vec<TcpContractMessage>,
     ) {
         let read_access = self.subscribers.lock().await;

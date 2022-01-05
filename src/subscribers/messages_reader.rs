@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use my_service_bus_shared::{queue_with_intervals::QueueWithIntervals, MessageId};
-use my_service_bus_tcp_shared::{TcpContract, TcpContractMessage};
+use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessage};
 use my_tcp_sockets::tcp_connection::SocketConnection;
 
 pub struct MySbMessage {
@@ -14,7 +14,7 @@ pub struct MessagesReader {
     pub total_messages: i64,
     pub confirmation_id: i64,
     pub messages: Vec<TcpContractMessage>,
-    pub connection: Arc<SocketConnection<TcpContract>>,
+    pub connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
     pub topic_id: String,
     pub queue_id: String,
     delivered: QueueWithIntervals,
@@ -25,7 +25,7 @@ impl MessagesReader {
     pub fn new(
         confirmation_id: i64,
         messages: Vec<TcpContractMessage>,
-        connection: Arc<SocketConnection<TcpContract>>,
+        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
         topic_id: String,
         queue_id: String,
     ) -> Self {

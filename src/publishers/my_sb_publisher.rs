@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use my_service_bus_tcp_shared::TcpContract;
+use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionId};
 use tokio::sync::Mutex;
 
@@ -51,7 +51,7 @@ impl MySbPublishers {
         write_access.confirm(connection_id, request_id).await;
     }
 
-    pub async fn new_connection(&self, ctx: Arc<SocketConnection<TcpContract>>) {
+    pub async fn new_connection(&self, ctx: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>) {
         let mut write_access = self.data.lock().await;
 
         if let Some(current_connection) = &write_access.connection {
