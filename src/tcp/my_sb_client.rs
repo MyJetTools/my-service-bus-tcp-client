@@ -1,21 +1,23 @@
 use std::sync::Arc;
 
 use crate::publishers::PublishError;
-use crate::subscribers::{MySbSubscribers, Subscriber};
+use crate::subscribers::{MySbSubscribers, SubscriberCallback};
 use crate::MySbPublishers;
 use my_logger::GetMyLoggerReader;
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::MySbTcpSerializer;
 use my_tcp_sockets::TcpClient;
 
+use super::incoming_events::IncomingTcpEvents;
+
 const TCP_CLIENT_NAME: &str = "MySbTcpClient";
 
 pub struct MyServiceBusClient {
-    app_name: String,
-    client_version: String,
-    publisher: Arc<MySbPublishers>,
-    subscribers: Arc<MySbSubscribers>,
-    tcp_client: TcpClient,
+    pub app_name: String,
+    pub client_version: String,
+    pub publishers: Arc<MySbPublishers>,
+    pub subscribers: Arc<MySbSubscribers>,
+    pub tcp_client: TcpClient,
 }
 
 impl MyServiceBusClient {
@@ -23,7 +25,7 @@ impl MyServiceBusClient {
         Self {
             app_name: app_name.to_string(),
             client_version: get_client_version(),
-            publisher: Arc::new(MySbPublishers::new()),
+            publishers: Arc::new(MySbPublishers::new()),
             subscribers: Arc::new(MySbSubscribers::new()),
             tcp_client: TcpClient::new(TCP_CLIENT_NAME.to_string(), host_port.to_string()),
         }
@@ -37,7 +39,7 @@ impl MyServiceBusClient {
         Self {
             app_name: app_name.to_string(),
             client_version: get_client_version(),
-            publisher: Arc::new(MySbPublishers::new()),
+            publishers: Arc::new(MySbPublishers::new()),
             subscribers: Arc::new(MySbSubscribers::new()),
             tcp_client: TcpClient::new_with_logger_reader(
                 TCP_CLIENT_NAME.to_string(),
@@ -48,22 +50,17 @@ impl MyServiceBusClient {
     }
 
     pub async fn start(&self) {
-        let socket_events_reader = self.tcp_client.start(Arc::new(|| -> MySbTcpSerializer {
-            let attrs = super::new_connection_handler::get_connection_attrs();
-            MySbTcpSerializer::new(attrs)
-        }));
-
-        tokio::task::spawn(super::incoming_events::start(
-            socket_events_reader,
-            self.publisher.clone(),
-            self.subscribers.clone(),
-            self.app_name.clone(),
-            self.client_version.clone(),
-        ));
+        self.tcp_client.start(
+            Arc::new(|| -> MySbTcpSerializer {
+                let attrs = super::new_connection_handler::get_connection_attrs();
+                MySbTcpSerializer::new(attrs)
+            }),
+            Arc::new(IncomingTcpEvents::new(self)),
+        );
     }
 
     pub async fn publish(&self, topic_id: &str, payload: Vec<u8>) -> Result<(), PublishError> {
-        self.publisher.publish(topic_id, payload).await?;
+        self.publishers.publish(topic_id, payload).await?;
         Ok(())
     }
 
@@ -72,12 +69,12 @@ impl MyServiceBusClient {
         topic_id: &str,
         payload: Vec<Vec<u8>>,
     ) -> Result<(), PublishError> {
-        self.publisher.publish_chunk(topic_id, payload).await?;
+        self.publishers.publish_chunk(topic_id, payload).await?;
         Ok(())
     }
 
     pub async fn create_topic_if_not_exists(&self, topic_id: String) {
-        self.publisher.create_topic_if_not_exists(topic_id).await;
+        self.publishers.create_topic_if_not_exists(topic_id).await;
     }
 
     pub async fn subscribe(
@@ -85,13 +82,11 @@ impl MyServiceBusClient {
         topic_id: String,
         queue_id: String,
         queue_type: TopicQueueType,
-    ) -> Subscriber {
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        callback: Arc<dyn SubscriberCallback + Send + Sync + 'static>,
+    ) {
         self.subscribers
-            .add(topic_id.clone(), queue_id.clone(), queue_type, tx)
+            .add(topic_id.clone(), queue_id.clone(), queue_type, callback)
             .await;
-
-        Subscriber::new(topic_id, queue_id, rx)
     }
 
     pub fn plug_logger<TGetMyLoggerReader: GetMyLoggerReader>(

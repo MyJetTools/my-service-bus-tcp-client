@@ -3,9 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessage};
 use my_tcp_sockets::tcp_connection::SocketConnection;
-use tokio::sync::mpsc::UnboundedSender;
 
-use super::{subscribe_item::SubscribeItem, MySbDeliveryPackage};
+use super::{subscriber::Subscriber, MySbDeliveryPackage, SubscriberCallback};
 
 pub struct MySbSubscriber {
     pub topic_id: String,
@@ -14,7 +13,7 @@ pub struct MySbSubscriber {
 }
 
 pub struct MySbSubscribersData {
-    pub subscribers: HashMap<String, HashMap<String, SubscribeItem>>,
+    pub subscribers: HashMap<String, HashMap<String, Subscriber>>,
 }
 
 impl MySbSubscribersData {
@@ -29,7 +28,7 @@ impl MySbSubscribersData {
         topic_id: String,
         queue_id: String,
         queue_type: TopicQueueType,
-        tx: UnboundedSender<MySbDeliveryPackage>,
+        subscriber_callback: Arc<dyn SubscriberCallback + Sync + Send + 'static>,
     ) {
         if !self.subscribers.contains_key(topic_id.as_str()) {
             self.subscribers
@@ -45,12 +44,17 @@ impl MySbSubscribersData {
             );
         }
 
-        let item = SubscribeItem::new(topic_id, queue_id.to_string(), queue_type, tx);
+        let item = Subscriber::new(
+            topic_id,
+            queue_id.to_string(),
+            queue_type,
+            subscriber_callback,
+        );
 
         by_topic.insert(queue_id, item);
     }
 
-    pub fn new_messages(
+    pub async fn new_messages(
         &self,
         topic_id: String,
         queue_id: String,
@@ -68,7 +72,7 @@ impl MySbSubscribersData {
                     connection,
                 };
 
-                let result = subscriber.tx.send(msg);
+                let result = subscriber.callback.new_events(msg).await;
 
                 if let Err(err) = result {
                     print!("Send Error: {}", err)

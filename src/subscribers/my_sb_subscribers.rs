@@ -3,9 +3,9 @@ use std::sync::Arc;
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessage};
 use my_tcp_sockets::tcp_connection::SocketConnection;
-use tokio::sync::{mpsc::UnboundedSender, Mutex};
+use tokio::sync::Mutex;
 
-use super::{my_sb_subscribers_data::MySbSubscriber, MySbDeliveryPackage, MySbSubscribersData};
+use super::{my_sb_subscribers_data::MySbSubscriber, MySbSubscribersData, SubscriberCallback};
 
 pub struct MySbSubscribers {
     subscribers: Mutex<MySbSubscribersData>,
@@ -23,10 +23,10 @@ impl MySbSubscribers {
         topic_id: String,
         queue_id: String,
         queue_type: TopicQueueType,
-        tx: UnboundedSender<MySbDeliveryPackage>,
+        calback: Arc<dyn SubscriberCallback + Send + Sync + 'static>,
     ) {
         let mut write_access = self.subscribers.lock().await;
-        write_access.add(topic_id, queue_id, queue_type, tx);
+        write_access.add(topic_id, queue_id, queue_type, calback);
     }
 
     pub async fn new_messages(
@@ -38,7 +38,9 @@ impl MySbSubscribers {
         messages: Vec<TcpContractMessage>,
     ) {
         let read_access = self.subscribers.lock().await;
-        read_access.new_messages(topic_id, queue_id, confirmation_id, connection, messages);
+        read_access
+            .new_messages(topic_id, queue_id, confirmation_id, connection, messages)
+            .await;
     }
 
     pub async fn get_subscribers(&self) -> Vec<MySbSubscriber> {

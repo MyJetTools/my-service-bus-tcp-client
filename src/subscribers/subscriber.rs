@@ -1,39 +1,28 @@
-use tokio::sync::mpsc::UnboundedReceiver;
+use std::sync::Arc;
 
-use super::{messages_reader::MessagesReader, MySbDeliveryPackage};
+use my_service_bus_shared::queue::TopicQueueType;
+
+use super::SubscriberCallback;
 
 pub struct Subscriber {
     pub topic_id: String,
     pub queue_id: String,
-    pub receiver: UnboundedReceiver<MySbDeliveryPackage>,
+    pub queue_type: TopicQueueType,
+    pub callback: Arc<dyn SubscriberCallback + Sync + Send + 'static>,
 }
 
 impl Subscriber {
     pub fn new(
         topic_id: String,
         queue_id: String,
-        receiver: UnboundedReceiver<MySbDeliveryPackage>,
+        queue_type: TopicQueueType,
+        callback: Arc<dyn SubscriberCallback + Sync + Send + 'static>,
     ) -> Self {
         Self {
             topic_id,
             queue_id,
-            receiver,
-        }
-    }
-
-    pub async fn get_next_messages(&mut self) -> MessagesReader {
-        loop {
-            let recieve_result = self.receiver.recv().await;
-
-            if let Some(package) = recieve_result {
-                return MessagesReader::new(
-                    package.confirmation_id,
-                    package.messages,
-                    package.connection.clone(),
-                    self.topic_id.to_string(),
-                    self.queue_id.to_string(),
-                );
-            }
+            queue_type,
+            callback,
         }
     }
 }

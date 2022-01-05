@@ -1,141 +1,95 @@
-use std::sync::Arc;
+use async_trait::async_trait;
 
 use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
-use my_tcp_sockets::tcp_connection::{ConnectionCallback, ConnectionEvent, SocketConnection};
+use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionEvent, SocketEventCallback};
+use std::sync::Arc;
 
-use crate::{subscribers::MySbSubscribers, MySbPublishers};
+use crate::{subscribers::MySbSubscribers, MySbPublishers, MyServiceBusClient};
 
-pub async fn start(
-    mut socket_events_reader: ConnectionCallback<TcpContract, MySbTcpSerializer>,
+pub struct IncomingTcpEvents {
     publishers: Arc<MySbPublishers>,
     subscribers: Arc<MySbSubscribers>,
     app_name: String,
     client_version: String,
-) {
-    loop {
-        match socket_events_reader.get_next_event().await {
+}
+
+impl IncomingTcpEvents {
+    pub fn new(src: &MyServiceBusClient) -> Self {
+        Self {
+            publishers: src.publishers.clone(),
+            subscribers: src.subscribers.clone(),
+            app_name: src.app_name.clone(),
+            client_version: src.client_version.clone(),
+        }
+    }
+    async fn handle_connected(
+        &self,
+        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
+    ) {
+        self.publishers.new_connection(connection.clone()).await;
+        super::new_connection_handler::send_init(
+            connection.as_ref(),
+            self.app_name.as_str(),
+            self.client_version.as_str(),
+            self.publishers.as_ref(),
+            self.subscribers.as_ref(),
+        )
+        .await;
+    }
+
+    async fn handle_disconnected(
+        &self,
+        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
+    ) {
+        self.publishers.disconnect(connection.id).await;
+    }
+
+    pub async fn new_packet(
+        &self,
+        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
+        contract: TcpContract,
+    ) {
+        match contract {
+            TcpContract::PublishResponse { request_id } => {
+                self.publishers
+                    .publish_confirmed(connection.id, request_id)
+                    .await;
+            }
+            TcpContract::NewMessages {
+                topic_id,
+                queue_id,
+                confirmation_id,
+                messages,
+            } => {
+                self.subscribers
+                    .new_messages(
+                        topic_id,
+                        queue_id,
+                        confirmation_id,
+                        connection.clone(),
+                        messages,
+                    )
+                    .await
+            }
+            _ => {}
+        }
+    }
+}
+
+#[async_trait]
+impl SocketEventCallback<TcpContract, MySbTcpSerializer> for IncomingTcpEvents {
+    async fn handle(&self, connection_event: ConnectionEvent<TcpContract, MySbTcpSerializer>) {
+        match connection_event {
             ConnectionEvent::Connected(connection) => {
-                connected(
-                    connection,
-                    app_name.clone(),
-                    client_version.clone(),
-                    publishers.clone(),
-                    subscribers.clone(),
-                )
-                .await;
+                self.handle_connected(connection).await;
             }
             ConnectionEvent::Disconnected(connection) => {
-                disconnected(connection, publishers.clone()).await;
+                self.handle_disconnected(connection).await;
             }
             ConnectionEvent::Payload {
                 connection,
                 payload,
-            } => {
-                new_packet(
-                    &connection,
-                    publishers.as_ref(),
-                    subscribers.as_ref(),
-                    payload,
-                )
-                .await
-            }
+            } => self.new_packet(connection, payload).await,
         }
-    }
-}
-
-pub async fn connected(
-    connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
-    app_name: String,
-    client_version: String,
-    publishers: Arc<MySbPublishers>,
-    subscribers: Arc<MySbSubscribers>,
-) {
-    let connection_id = connection.id;
-    let connected_result = tokio::task::spawn(handle_connected(
-        connection,
-        app_name,
-        client_version,
-        publishers,
-        subscribers,
-    ))
-    .await;
-
-    if let Err(err) = connected_result {
-        println!(
-            "Panic at handeling tcp connected event for connection {}. Error: {:?}",
-            connection_id, err
-        );
-    }
-}
-
-async fn handle_connected(
-    connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
-    app_name: String,
-    client_version: String,
-    publishers: Arc<MySbPublishers>,
-    subscribers: Arc<MySbSubscribers>,
-) {
-    publishers.new_connection(connection.clone()).await;
-    super::new_connection_handler::send_init(
-        connection.as_ref(),
-        app_name.as_str(),
-        client_version.as_str(),
-        publishers.as_ref(),
-        subscribers.as_ref(),
-    )
-    .await;
-}
-
-pub async fn disconnected(
-    connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
-    publishers: Arc<MySbPublishers>,
-) {
-    let connection_id = connection.id;
-    let connected_result = tokio::task::spawn(handle_disconnected(connection, publishers)).await;
-
-    if let Err(err) = connected_result {
-        println!(
-            "Panic at handeling tcp disconnected event for connection {}. Error: {:?}",
-            connection_id, err
-        );
-    }
-}
-
-async fn handle_disconnected(
-    connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
-    publishers: Arc<MySbPublishers>,
-) {
-    publishers.disconnect(connection.id).await;
-}
-
-pub async fn new_packet(
-    connection: &Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
-    publishers: &MySbPublishers,
-    subscribers: &MySbSubscribers,
-    contract: TcpContract,
-) {
-    match contract {
-        TcpContract::PublishResponse { request_id } => {
-            publishers
-                .publish_confirmed(connection.id, request_id)
-                .await;
-        }
-        TcpContract::NewMessages {
-            topic_id,
-            queue_id,
-            confirmation_id,
-            messages,
-        } => {
-            subscribers
-                .new_messages(
-                    topic_id,
-                    queue_id,
-                    confirmation_id,
-                    connection.clone(),
-                    messages,
-                )
-                .await
-        }
-        _ => {}
     }
 }
