@@ -114,7 +114,7 @@ impl Drop for MessagesReader {
     }
 }
 
-impl Iterator for &mut MessagesReader {
+impl Iterator for MessagesReader {
     type Item = MySbMessage;
 
     fn next(&mut self) -> Option<Self::Item> {
