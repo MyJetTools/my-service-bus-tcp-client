@@ -14,7 +14,7 @@ pub struct MySbMessage {
 
 pub struct MessagesReader {
     total_messages_amount: i64,
-    message_id_on_delivery: Option<MessageId>,
+
     pub topic_id: String,
     pub queue_id: String,
     messages: Vec<TcpContractMessage>,
@@ -40,7 +40,7 @@ impl MessagesReader {
             messages,
             confirmation_id,
             connection,
-            message_id_on_delivery: None,
+
             delivered: QueueWithIntervals::new(),
             total_messages_amount,
             logger,
@@ -48,18 +48,21 @@ impl MessagesReader {
     }
 
     pub fn handled_ok(&mut self) {
-        if let Some(message_id_on_delivery) = self.message_id_on_delivery {
-            self.delivered.enqueue(message_id_on_delivery);
-            self.message_id_on_delivery = None;
-        }
+        //  if let Some(message_id_on_delivery) = self.message_id_on_delivery {
+        //      self.delivered.enqueue(message_id_on_delivery);
+        //      self.message_id_on_delivery = None;
+        //  }
     }
 
     pub fn handled_fail(&mut self) {
-        self.message_id_on_delivery = None;
+        //  self.message_id_on_delivery = None;
     }
 
-    pub fn get_messages(&mut self) -> MessagesReaderIterator {
-        MessagesReaderIterator { src: self }
+    pub fn get_messages(&self) -> MessagesReaderIterator {
+        MessagesReaderIterator {
+            messages: self.messages.clone(),
+            message_id_on_delivery: None,
+        }
     }
 }
 
@@ -118,24 +121,21 @@ impl Drop for MessagesReader {
     }
 }
 
-pub struct MessagesReaderIterator<'s> {
-    src: &'s mut MessagesReader,
+pub struct MessagesReaderIterator {
+    messages: Vec<TcpContractMessage>,
+    message_id_on_delivery: Option<MessageId>,
 }
 
-impl<'s> Iterator for MessagesReaderIterator<'s> {
+impl Iterator for MessagesReaderIterator {
     type Item = MySbMessage;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.src.message_id_on_delivery.is_none() {
-            panic!("You did not confirm previous message");
-        }
-
-        if self.src.messages.len() == 0 {
+        if self.messages.len() == 0 {
             return None;
         }
 
-        let next_message = self.src.messages.remove(0);
-        self.src.message_id_on_delivery = Some(next_message.id);
+        let next_message = self.messages.remove(0);
+        self.message_id_on_delivery = Some(next_message.id);
 
         let result = MySbMessage {
             id: next_message.id,
