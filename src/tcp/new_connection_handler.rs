@@ -12,8 +12,8 @@ pub async fn send_init(
     publisher: &MySbPublishers,
     subscribers: &MySbSubscribers,
 ) {
-    send_packet_versions(connection).await;
     send_greeting(connection, app_name, client_version).await;
+    send_packet_versions(connection).await;
     let topics = publisher.get_topics_to_create().await;
     create_topics_if_not_exists(connection, topics).await;
     subscribe_to_queues(connection, subscribers).await;
