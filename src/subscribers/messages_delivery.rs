@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use my_service_bus_shared::{queue_with_intervals::QueueWithIntervals, MessageId};
 use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessage};
@@ -7,6 +7,7 @@ use my_tcp_sockets::tcp_connection::SocketConnection;
 pub struct MySbMessage {
     pub id: MessageId,
     pub attempt_no: i32,
+    pub headers: Option<HashMap<String, String>>,
     pub content: Vec<u8>,
 }
 
@@ -95,6 +96,7 @@ impl Iterator for MessagesReader {
             id: next_message.id,
             attempt_no: next_message.attempt_no,
             content: next_message.content,
+            headers: next_message.headers,
         };
 
         Some(result)
