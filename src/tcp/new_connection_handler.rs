@@ -73,7 +73,7 @@ async fn subscribe_to_queues(
     }
 }
 
-const PROTOCOL_VERSION: i32 = 2;
+const PROTOCOL_VERSION: i32 = 3;
 
 pub fn get_connection_attrs() -> ConnectionAttributes {
     let mut attr = ConnectionAttributes::new(PROTOCOL_VERSION);
