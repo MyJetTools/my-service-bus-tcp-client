@@ -17,7 +17,7 @@ pub struct MessagesReader {
 
     pub topic_id: String,
     pub queue_id: String,
-    messages: Vec<TcpContractMessage>,
+    messages: Option<Vec<TcpContractMessage>>,
     pub confirmation_id: i64,
     delivered: QueueWithIntervals,
     connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
@@ -37,7 +37,7 @@ impl MessagesReader {
         Self {
             topic_id,
             queue_id,
-            messages,
+            messages: Some(messages),
             confirmation_id,
             connection,
 
@@ -47,21 +47,19 @@ impl MessagesReader {
         }
     }
 
-    pub fn handled_ok(&mut self) {
-        //  if let Some(message_id_on_delivery) = self.message_id_on_delivery {
-        //      self.delivered.enqueue(message_id_on_delivery);
-        //      self.message_id_on_delivery = None;
-        //  }
+    pub fn handled_ok(&mut self, msg: &MySbMessage) {
+        self.delivered.enqueue(msg.id);
     }
 
-    pub fn handled_fail(&mut self) {
-        //  self.message_id_on_delivery = None;
-    }
+    pub fn get_messages(&mut self) -> MessagesReaderIterator {
+        let mut messages = None;
+        std::mem::swap(&mut messages, &mut self.messages);
 
-    pub fn get_messages(&self) -> MessagesReaderIterator {
+        if messages.is_none() {
+            panic!("Messages can not be iterated for the second time");
+        }
         MessagesReaderIterator {
-            messages: self.messages.clone(),
-            message_id_on_delivery: None,
+            messages: messages.unwrap(),
         }
     }
 }
@@ -123,7 +121,6 @@ impl Drop for MessagesReader {
 
 pub struct MessagesReaderIterator {
     messages: Vec<TcpContractMessage>,
-    message_id_on_delivery: Option<MessageId>,
 }
 
 impl Iterator for MessagesReaderIterator {
@@ -135,7 +132,6 @@ impl Iterator for MessagesReaderIterator {
         }
 
         let next_message = self.messages.remove(0);
-        self.message_id_on_delivery = Some(next_message.id);
 
         let result = MySbMessage {
             id: next_message.id,
