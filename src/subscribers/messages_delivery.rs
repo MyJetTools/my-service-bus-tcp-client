@@ -57,6 +57,10 @@ impl MessagesReader {
     pub fn handled_fail(&mut self) {
         self.message_id_on_delivery = None;
     }
+
+    pub fn get_messages(&mut self) -> MessagesReaderIterator {
+        MessagesReaderIterator { src: self }
+    }
 }
 
 impl Drop for MessagesReader {
@@ -114,20 +118,24 @@ impl Drop for MessagesReader {
     }
 }
 
-impl Iterator for MessagesReader {
+pub struct MessagesReaderIterator<'s> {
+    src: &'s mut MessagesReader,
+}
+
+impl<'s> Iterator for MessagesReaderIterator<'s> {
     type Item = MySbMessage;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.message_id_on_delivery.is_none() {
+        if self.src.message_id_on_delivery.is_none() {
             panic!("You did not confirm previous message");
         }
 
-        if self.messages.len() == 0 {
+        if self.src.messages.len() == 0 {
             return None;
         }
 
-        let next_message = self.messages.remove(0);
-        self.message_id_on_delivery = Some(next_message.id);
+        let next_message = self.src.messages.remove(0);
+        self.src.message_id_on_delivery = Some(next_message.id);
 
         let result = MySbMessage {
             id: next_message.id,
