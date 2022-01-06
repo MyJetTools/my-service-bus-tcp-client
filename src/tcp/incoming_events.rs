@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 
+use my_logger::MyLogger;
 use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionEvent, SocketEventCallback};
 use std::sync::Arc;
@@ -11,6 +12,7 @@ pub struct IncomingTcpEvents {
     subscribers: Arc<MySbSubscribers>,
     app_name: String,
     client_version: String,
+    logger: Arc<MyLogger>,
 }
 
 impl IncomingTcpEvents {
@@ -20,6 +22,7 @@ impl IncomingTcpEvents {
             subscribers: src.subscribers.clone(),
             app_name: src.app_name.clone(),
             client_version: src.client_version.clone(),
+            logger: src.get_logger(),
         }
     }
     async fn handle_connected(
@@ -68,6 +71,7 @@ impl IncomingTcpEvents {
                         confirmation_id,
                         connection.clone(),
                         messages,
+                        self.logger.clone(),
                     )
                     .await
             }

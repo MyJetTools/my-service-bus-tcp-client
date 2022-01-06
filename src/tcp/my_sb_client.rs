@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::publishers::PublishError;
 use crate::subscribers::{MySbSubscribers, SubscriberCallback};
 use crate::MySbPublishers;
-use my_logger::GetMyLoggerReader;
+use my_logger::{GetMyLoggerReader, MyLogger};
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::MySbTcpSerializer;
 use my_tcp_sockets::TcpClient;
@@ -120,6 +120,10 @@ impl MyServiceBusClient {
         get_logger: &TGetMyLoggerReader,
     ) {
         self.tcp_client.plug_logger(get_logger);
+    }
+
+    pub fn get_logger(&self) -> Arc<MyLogger> {
+        self.tcp_client.logger.clone()
     }
 }
 

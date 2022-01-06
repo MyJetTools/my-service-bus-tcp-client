@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use my_logger::MyLogger;
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessage};
 use my_tcp_sockets::tcp_connection::SocketConnection;
@@ -38,6 +39,7 @@ impl MySbSubscribers {
         confirmation_id: i64,
         connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
         messages: Vec<TcpContractMessage>,
+        logger: Arc<MyLogger>,
     ) {
         let callback = {
             let read_access = self.subscribers.lock().await;
@@ -45,21 +47,48 @@ impl MySbSubscribers {
         };
 
         if let Some(callback) = callback {
-            tokio::spawn(async move {
-                let messages_reader =
-                    MessagesReader::new(topic_id, queue_id, messages, confirmation_id, connection);
+            let messages_reader = MessagesReader::new(
+                topic_id,
+                queue_id,
+                messages,
+                confirmation_id,
+                connection,
+                logger.clone(),
+            );
 
-                let result = callback.new_events(messages_reader).await;
-
-                if let Err(err) = result {
-                    print!("Send Error: {}", err)
-                }
-            });
+            tokio::spawn(new_messages_callback(messages_reader, callback, logger));
         }
     }
 
     pub async fn get_subscribers(&self) -> Vec<MySbSubscriber> {
         let read_access = self.subscribers.lock().await;
         read_access.get_subscribers()
+    }
+}
+
+async fn new_messages_callback(
+    messages_reader: MessagesReader,
+    callback: Arc<dyn SubscriberCallback + Sync + Send + 'static>,
+    logger: Arc<MyLogger>,
+) {
+    let topic_id = messages_reader.topic_id.to_string();
+    let queue_id = messages_reader.queue_id.to_string();
+    let confirmation_id = messages_reader.confirmation_id;
+
+    let result = tokio::spawn(async move {
+        callback.new_events(messages_reader).await;
+    })
+    .await;
+
+    if let Err(err) = result {
+        logger.write_log(
+            my_logger::LogLevel::FatalError,
+            "MySB Incoming messages".to_string(),
+            format!("{}", err),
+            Some(format!(
+                "{}/{} with confirmation id: {}",
+                topic_id, queue_id, confirmation_id
+            )),
+        )
     }
 }

@@ -64,36 +64,6 @@ impl MySbSubscribersData {
         return Some(subscriber.callback.clone());
     }
 
-    /*
-    pub async fn new_messages(
-        &self,
-        topic_id: String,
-        queue_id: String,
-        confirmation_id: i64,
-        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
-        messages: Vec<TcpContractMessage>,
-    ) {
-        let by_topic = self.subscribers.get(topic_id.as_str());
-
-        if let Some(by_topic) = by_topic {
-            if let Some(subscriber) = by_topic.get(queue_id.as_str()) {
-                let msg = MySbDeliveryPackage {
-                    messages,
-                    confirmation_id,
-                    connection,
-                };
-
-                let result = subscriber.callback.new_events(msg).await;
-
-                if let Err(err) = result {
-                    print!("Send Error: {}", err)
-                }
-            }
-        }
-    }
-
-     */
-
     pub fn get_subscribers(&self) -> Vec<MySbSubscriber> {
         let mut result = Vec::new();
 
