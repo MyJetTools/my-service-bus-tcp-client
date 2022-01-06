@@ -4,5 +4,5 @@ use super::messages_delivery::MessagesReader;
 
 #[async_trait]
 pub trait SubscriberCallback {
-    async fn new_events(&self, delivery_package: MessagesReader);
+    async fn new_events(&self, messages_reader: MessagesReader);
 }
