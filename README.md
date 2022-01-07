@@ -44,7 +44,7 @@ async fn main() {
 }
 ```
 
-Code Example - how to subscribe and  messages:
+Code Example - how to subscribe and receive messages:
 
 ```rust
 use async_trait::async_trait;
