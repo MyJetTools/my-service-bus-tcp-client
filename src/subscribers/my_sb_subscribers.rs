@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use my_logger::MyLogger;
 use my_service_bus_shared::queue::TopicQueueType;
-use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessage};
+use my_service_bus_tcp_shared::{MessageToDeliverTcpContract, MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::tcp_connection::SocketConnection;
 use tokio::sync::Mutex;
 
@@ -38,7 +38,7 @@ impl MySbSubscribers {
         queue_id: String,
         confirmation_id: i64,
         connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
-        messages: Vec<TcpContractMessage>,
+        messages: Vec<MessageToDeliverTcpContract>,
         logger: Arc<MyLogger>,
     ) {
         let callback = {

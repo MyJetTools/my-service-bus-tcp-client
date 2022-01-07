@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use my_logger::MyLogger;
 use my_service_bus_shared::{queue_with_intervals::QueueWithIntervals, MessageId};
-use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract, TcpContractMessage};
+use my_service_bus_tcp_shared::{MessageToDeliverTcpContract, MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::tcp_connection::SocketConnection;
 
 pub struct MySbMessage {
@@ -17,7 +17,7 @@ pub struct MessagesReader {
 
     pub topic_id: String,
     pub queue_id: String,
-    messages: Option<Vec<TcpContractMessage>>,
+    messages: Option<Vec<MessageToDeliverTcpContract>>,
     pub confirmation_id: i64,
     delivered: QueueWithIntervals,
     connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
@@ -28,7 +28,7 @@ impl MessagesReader {
     pub fn new(
         topic_id: String,
         queue_id: String,
-        messages: Vec<TcpContractMessage>,
+        messages: Vec<MessageToDeliverTcpContract>,
         confirmation_id: i64,
         connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
         logger: Arc<MyLogger>,
@@ -120,7 +120,7 @@ impl Drop for MessagesReader {
 }
 
 pub struct MessagesReaderIterator {
-    messages: Vec<TcpContractMessage>,
+    messages: Vec<MessageToDeliverTcpContract>,
 }
 
 impl Iterator for MessagesReaderIterator {
