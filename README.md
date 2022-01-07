@@ -3,6 +3,7 @@ Add to Cargo.toml file
 ```toml
 [dependencies]
 my-service-bus-tcp-client = { branch = "main", git = "https://github.com/MyJetTools/my-service-bus-tcp-client.git" }
+my-service-bus-shared = { branch = "main", git = "https://github.com/MyJetTools/my-service-bus-shared.git" }
 
 tokio = { version = "*", features = ["full"] }
 tokio-util = "*"
@@ -33,12 +34,62 @@ async fn main() {
 
     let result = app_ctx
             .my_sb_connection
-            .publish_chunk(app_ctx.settings.topic_name.as_str(), data_to_publish)
+            .publish_chunk("topic_name".to_string(), data_to_publish)
             .await;
 
     if let Err(err) = error {
        println!("Publish error: {:?}", err);
     }
             
+}
+```
+
+Code Example - how to subscribe and  messages:
+
+```rust
+use async_trait::async_trait;
+use my_service_bus_shared::queue::TopicQueueType;
+use my_service_bus_tcp_client::{
+    subscribers::{MessagesReader, SubscriberCallback},
+    MyServiceBusClient,
+};
+use std::{sync::Arc, time::Duration};
+
+#[tokio::main]
+async fn main() {
+
+    let client = TcpClient::new(
+        "test-app".to_string(),
+        "127.0.0.1:6421".to_string(),
+    );
+
+    my_sb_connection
+        .subscribe(
+            settings.topic_name.to_string(),
+            "test-queue".to_string(),
+            TopicQueueType::DeleteOnDisconnect,
+            Arc::new(MySbSubscriber {}),
+        )
+        .await;
+
+    my_sb_connection.start().await;
+
+    loop {
+        tokio::time::sleep(Duration::from_secs(3)).await;
+    }
+            
+}
+
+
+pub struct MySbSubscriber {}
+
+#[async_trait]
+impl SubscriberCallback for MySbSubscriber {
+    async fn new_events(&self, mut messages_reader: MessagesReader) {
+        for msg in messages_reader.get_messages() {
+            println!("{:?}", msg.headers);
+            messages_reader.handled_ok(&msg);
+        }
+    }
 }
 ```
