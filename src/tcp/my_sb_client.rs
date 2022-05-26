@@ -53,25 +53,23 @@ impl MyServiceBusClient {
         }
     }
 
-    /*
-       pub fn new_with_logger_reader<TGetMyLoggerReader: GetMyLoggerReader>(
-           host_port: &str,
-           app_name: &str,
-           get_logger: &TGetMyLoggerReader,
-       ) -> Self {
-           Self {
-               app_name: app_name.to_string(),
-               client_version: get_client_version(),
-               publishers: Arc::new(MySbPublishers::new()),
-               subscribers: Arc::new(MySbSubscribers::new()),
-               tcp_client: TcpClient::new_with_logger(
-                   TCP_CLIENT_NAME.to_string(),
-                   host_port.to_string(),
-                   get_logger,
-               ),
-           }
-       }
-    */
+    pub fn new_with_logger_reader(
+        host_port: &str,
+        app_name: &str,
+        get_logger: Arc<MyLogger>,
+    ) -> Self {
+        Self {
+            app_name: app_name.to_string(),
+            client_version: get_client_version(),
+            publishers: Arc::new(MySbPublishers::new()),
+            subscribers: Arc::new(MySbSubscribers::new()),
+            tcp_client: TcpClient::new_with_logger(
+                TCP_CLIENT_NAME.to_string(),
+                host_port.to_string(),
+                get_logger,
+            ),
+        }
+    }
 
     pub async fn start(&self) {
         self.tcp_client.start(
@@ -117,14 +115,10 @@ impl MyServiceBusClient {
             .await;
     }
 
-    /*
-       pub fn plug_logger<TGetMyLoggerReader: GetMyLoggerReader>(
-           &mut self,
-           get_logger: &TGetMyLoggerReader,
-       ) {
-           self.tcp_client.plug_logger(get_logger);
-       }
-    */
+    pub fn plug_logger(&mut self, logger: Arc<MyLogger>) {
+        self.tcp_client.logger = logger;
+    }
+
     pub fn get_logger(&self) -> Arc<MyLogger> {
         self.tcp_client.logger.clone()
     }
