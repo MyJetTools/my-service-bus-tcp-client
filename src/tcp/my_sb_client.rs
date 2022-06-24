@@ -4,22 +4,14 @@ use std::sync::Arc;
 use crate::publishers::PublishError;
 use crate::subscribers::{MySbSubscribers, SubscriberCallback};
 use crate::MySbPublishers;
-use my_logger::MyLogger;
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::MySbTcpSerializer;
 use my_tcp_sockets::TcpClient;
+use rust_extensions::{ApplicationStates, Logger};
 
 use super::incoming_events::IncomingTcpEvents;
 
 const TCP_CLIENT_NAME: &str = "MySbTcpClient";
-
-pub struct MyServiceBusClient {
-    pub app_name: String,
-    pub client_version: String,
-    pub publishers: Arc<MySbPublishers>,
-    pub subscribers: Arc<MySbSubscribers>,
-    pub tcp_client: TcpClient,
-}
 
 pub struct MessageToPublish {
     pub headers: Option<HashMap<String, String>>,
@@ -42,42 +34,40 @@ impl MessageToPublish {
     }
 }
 
-impl MyServiceBusClient {
-    pub fn new(host_port: &str, app_name: &str) -> Self {
-        Self {
-            app_name: app_name.to_string(),
-            client_version: get_client_version(),
-            publishers: Arc::new(MySbPublishers::new()),
-            subscribers: Arc::new(MySbSubscribers::new()),
-            tcp_client: TcpClient::new(TCP_CLIENT_NAME.to_string(), host_port.to_string()),
-        }
-    }
+pub struct MyServiceBusClient {
+    pub app_name: String,
+    pub client_version: String,
+    pub publishers: Arc<MySbPublishers>,
+    pub subscribers: Arc<MySbSubscribers>,
+    pub tcp_client: TcpClient,
+    pub logger: Arc<dyn Logger + Send + Sync + 'static>,
+}
 
-    pub fn new_with_logger_reader(
+impl MyServiceBusClient {
+    pub fn new(
         host_port: &str,
         app_name: &str,
-        get_logger: Arc<MyLogger>,
+        logger: Arc<dyn Logger + Send + Sync + 'static>,
     ) -> Self {
         Self {
             app_name: app_name.to_string(),
             client_version: get_client_version(),
             publishers: Arc::new(MySbPublishers::new()),
             subscribers: Arc::new(MySbSubscribers::new()),
-            tcp_client: TcpClient::new_with_logger(
-                TCP_CLIENT_NAME.to_string(),
-                host_port.to_string(),
-                get_logger,
-            ),
+            tcp_client: TcpClient::new(TCP_CLIENT_NAME.to_string(), host_port.to_string()),
+            logger,
         }
     }
 
-    pub async fn start(&self) {
+    pub async fn start(&self, app_states: Arc<dyn ApplicationStates + Send + Sync + 'static>) {
         self.tcp_client.start(
             Arc::new(|| -> MySbTcpSerializer {
                 let attrs = super::new_connection_handler::get_connection_attrs();
                 MySbTcpSerializer::new(attrs)
             }),
             Arc::new(IncomingTcpEvents::new(self)),
+            app_states,
+            self.logger.clone(),
         );
     }
 
@@ -113,14 +103,6 @@ impl MyServiceBusClient {
         self.subscribers
             .add(topic_id.clone(), queue_id.clone(), queue_type, callback)
             .await;
-    }
-
-    pub fn plug_logger(&mut self, logger: Arc<MyLogger>) {
-        self.tcp_client.logger = logger;
-    }
-
-    pub fn get_logger(&self) -> Arc<MyLogger> {
-        self.tcp_client.logger.clone()
     }
 }
 

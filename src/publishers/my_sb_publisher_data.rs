@@ -56,12 +56,7 @@ impl MySbPublisherData {
             topic_id: topic_id.to_string(),
         };
 
-        if !connection.socket.send(payload).await {
-            return Err(PublishError::Other(format!(
-                "Can not send data to connection {}",
-                connection.socket.id,
-            )));
-        }
+        connection.socket.send(payload).await;
 
         let mut task = TaskCompletion::new();
         let awaiter = task.get_awaiter();

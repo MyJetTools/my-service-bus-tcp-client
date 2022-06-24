@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use my_logger::MyLogger;
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::{MessageToDeliverTcpContract, MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::tcp_connection::SocketConnection;
+use rust_extensions::Logger;
 use tokio::sync::Mutex;
 
 use super::{
@@ -39,7 +39,7 @@ impl MySbSubscribers {
         confirmation_id: i64,
         connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
         messages: Vec<MessageToDeliverTcpContract>,
-        logger: Arc<MyLogger>,
+        logger: Arc<dyn Logger + Send + Sync + 'static>,
     ) {
         let callback = {
             let read_access = self.subscribers.lock().await;
@@ -69,7 +69,7 @@ impl MySbSubscribers {
 async fn new_messages_callback(
     messages_reader: MessagesReader,
     callback: Arc<dyn SubscriberCallback + Sync + Send + 'static>,
-    logger: Arc<MyLogger>,
+    logger: Arc<dyn Logger + Send + Sync + 'static>,
 ) {
     let topic_id = messages_reader.topic_id.to_string();
     let queue_id = messages_reader.queue_id.to_string();
@@ -81,8 +81,7 @@ async fn new_messages_callback(
     .await;
 
     if let Err(err) = result {
-        logger.write_log(
-            my_logger::LogLevel::FatalError,
+        logger.write_error(
             "MySB Incoming messages".to_string(),
             format!("{}", err),
             Some(format!(

@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 
-use my_logger::MyLogger;
 use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionEvent, SocketEventCallback};
+use rust_extensions::Logger;
 use std::sync::Arc;
 
 use crate::{subscribers::MySbSubscribers, MySbPublishers, MyServiceBusClient};
@@ -12,7 +12,7 @@ pub struct IncomingTcpEvents {
     subscribers: Arc<MySbSubscribers>,
     app_name: String,
     client_version: String,
-    logger: Arc<MyLogger>,
+    logger: Arc<dyn Logger + Send + Sync + 'static>,
 }
 
 impl IncomingTcpEvents {
@@ -22,7 +22,7 @@ impl IncomingTcpEvents {
             subscribers: src.subscribers.clone(),
             app_name: src.app_name.clone(),
             client_version: src.client_version.clone(),
-            logger: src.get_logger(),
+            logger: src.logger.clone(),
         }
     }
     async fn handle_connected(
