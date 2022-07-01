@@ -7,7 +7,7 @@ use crate::MySbPublishers;
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::MySbTcpSerializer;
 use my_tcp_sockets::TcpClient;
-use rust_extensions::{ApplicationStates, Logger};
+use rust_extensions::Logger;
 
 use super::incoming_events::IncomingTcpEvents;
 
@@ -59,16 +59,17 @@ impl MyServiceBusClient {
         }
     }
 
-    pub async fn start(&self, app_states: Arc<dyn ApplicationStates + Send + Sync + 'static>) {
-        self.tcp_client.start(
-            Arc::new(|| -> MySbTcpSerializer {
-                let attrs = super::new_connection_handler::get_connection_attrs();
-                MySbTcpSerializer::new(attrs)
-            }),
-            Arc::new(IncomingTcpEvents::new(self)),
-            app_states,
-            self.logger.clone(),
-        );
+    pub async fn start(&self) {
+        self.tcp_client
+            .start(
+                Arc::new(|| -> MySbTcpSerializer {
+                    let attrs = super::new_connection_handler::get_connection_attrs();
+                    MySbTcpSerializer::new(attrs)
+                }),
+                Arc::new(IncomingTcpEvents::new(self)),
+                self.logger.clone(),
+            )
+            .await;
     }
 
     pub async fn publish(
