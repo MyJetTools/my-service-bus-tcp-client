@@ -5,7 +5,7 @@ use my_service_bus_tcp_shared::{MessageToDeliverTcpContract, MySbTcpSerializer, 
 use my_tcp_sockets::tcp_connection::SocketConnection;
 use rust_extensions::Logger;
 
-pub struct MySbMessage {
+pub struct MySbDeliveredMessage {
     pub id: MessageId,
     pub attempt_no: i32,
     pub headers: Option<HashMap<String, String>>,
@@ -47,7 +47,7 @@ impl MessagesReader {
         }
     }
 
-    pub fn handled_ok(&mut self, msg: &MySbMessage) {
+    pub fn handled_ok(&mut self, msg: &MySbDeliveredMessage) {
         self.delivered.enqueue(msg.id);
     }
 
@@ -122,7 +122,7 @@ pub struct MessagesReaderIterator {
 }
 
 impl Iterator for MessagesReaderIterator {
-    type Item = MySbMessage;
+    type Item = MySbDeliveredMessage;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.messages.len() == 0 {
@@ -131,7 +131,7 @@ impl Iterator for MessagesReaderIterator {
 
         let next_message = self.messages.remove(0);
 
-        let result = MySbMessage {
+        let result = MySbDeliveredMessage {
             id: next_message.id,
             attempt_no: next_message.attempt_no,
             content: next_message.content,
