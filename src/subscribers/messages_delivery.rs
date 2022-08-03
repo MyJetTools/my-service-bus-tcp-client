@@ -73,13 +73,19 @@ impl Drop for MessagesReader {
                 confirmation_id: self.confirmation_id,
             }
         } else if self.delivered.len() == 0 {
+            let mut log_context = HashMap::new();
+            log_context.insert(
+                "ConfirmationId".to_string(),
+                self.confirmation_id.to_string(),
+            );
+
+            log_context.insert("TopicId".to_string(), self.topic_id.to_string());
+            log_context.insert("QueueId".to_string(), self.queue_id.to_string());
+
             self.logger.write_error(
                 "Sending delivery confirmation".to_string(),
                 "All messages confirmed as fail".to_string(),
-                Some(format!(
-                    "{}/{}. ConfirmationId: {}",
-                    self.topic_id, self.queue_id, self.confirmation_id
-                )),
+                Some(log_context),
             );
 
             TcpContract::AllMessagesConfirmedAsFail {
@@ -88,6 +94,15 @@ impl Drop for MessagesReader {
                 confirmation_id: self.confirmation_id,
             }
         } else {
+            let mut log_context = HashMap::new();
+            log_context.insert(
+                "ConfirmationId".to_string(),
+                self.confirmation_id.to_string(),
+            );
+
+            log_context.insert("TopicId".to_string(), self.topic_id.to_string());
+            log_context.insert("QueueId".to_string(), self.queue_id.to_string());
+
             self.logger.write_error(
                 "Sending delivery confirmation".to_string(),
                 format!(
@@ -95,10 +110,7 @@ impl Drop for MessagesReader {
                     self.delivered.len(),
                     self.total_messages_amount
                 ),
-                Some(format!(
-                    "{}/{}. ConfirmationId: {}",
-                    self.topic_id, self.queue_id, self.confirmation_id
-                )),
+                Some(log_context),
             );
             TcpContract::ConfirmSomeMessagesAsOk {
                 topic_id: self.topic_id.to_string(),

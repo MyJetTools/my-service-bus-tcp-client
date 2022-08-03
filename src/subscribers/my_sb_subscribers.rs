@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::{MessageToDeliverTcpContract, MySbTcpSerializer, TcpContract};
@@ -81,13 +81,16 @@ async fn new_messages_callback(
     .await;
 
     if let Err(err) = result {
+        let mut log_context = HashMap::new();
+        log_context.insert("ConfirmationId".to_string(), confirmation_id.to_string());
+
+        log_context.insert("TopicId".to_string(), topic_id);
+        log_context.insert("QueueId".to_string(), queue_id);
+
         logger.write_error(
             "MySB Incoming messages".to_string(),
             format!("{}", err),
-            Some(format!(
-                "{}/{} with confirmation id: {}",
-                topic_id, queue_id, confirmation_id
-            )),
+            Some(log_context),
         )
     }
 }
