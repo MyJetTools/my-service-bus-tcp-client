@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crate::publishers::PublishError;
@@ -41,6 +42,7 @@ pub struct MyServiceBusClient {
     pub subscribers: Arc<MySbSubscribers>,
     pub tcp_client: TcpClient,
     pub logger: Arc<dyn Logger + Send + Sync + 'static>,
+    has_connection: Arc<AtomicBool>,
 }
 
 impl MyServiceBusClient {
@@ -56,6 +58,7 @@ impl MyServiceBusClient {
             subscribers: Arc::new(MySbSubscribers::new()),
             tcp_client: TcpClient::new(TCP_CLIENT_NAME.to_string(), host_port.to_string()),
             logger,
+            has_connection: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -66,7 +69,7 @@ impl MyServiceBusClient {
                     let attrs = super::new_connection_handler::get_connection_attrs();
                     MySbTcpSerializer::new(attrs)
                 }),
-                Arc::new(IncomingTcpEvents::new(self)),
+                Arc::new(IncomingTcpEvents::new(self, self.has_connection.clone())),
                 self.logger.clone(),
             )
             .await;
@@ -104,6 +107,11 @@ impl MyServiceBusClient {
         self.subscribers
             .add(topic_id.clone(), queue_id.clone(), queue_type, callback)
             .await;
+    }
+
+    pub async fn has_connection(&self) {
+        self.has_connection
+            .load(std::sync::atomic::Ordering::SeqCst);
     }
 }
 
