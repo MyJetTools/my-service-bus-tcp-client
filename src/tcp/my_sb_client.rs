@@ -109,7 +109,7 @@ impl MyServiceBusClient {
             .await;
     }
 
-    pub async fn has_connection(&self) {
+    pub fn has_connection(&self) {
         self.has_connection
             .load(std::sync::atomic::Ordering::SeqCst);
     }
