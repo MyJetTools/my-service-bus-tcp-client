@@ -1,13 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use my_service_bus_shared::queue::TopicQueueType;
-use my_service_bus_tcp_shared::TcpContractMessage;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use super::{
-    subscribe_item::SubscribeItem, ConfirmationSender, MySbDeliveryConfirmationEvent,
-    MySbDeliveryPackage,
-};
+use super::{subscriber::Subscriber, SubscriberCallback};
 
 pub struct MySbSubscriber {
     pub topic_id: String,
@@ -16,18 +11,13 @@ pub struct MySbSubscriber {
 }
 
 pub struct MySbSubscribersData {
-    pub subscribers: HashMap<String, HashMap<String, SubscribeItem>>,
-
-    confirmation_sender: Option<Arc<ConfirmationSender>>,
-    confirmation_receiver: Option<UnboundedReceiver<MySbDeliveryConfirmationEvent>>,
+    pub subscribers: HashMap<String, HashMap<String, Subscriber>>,
 }
 
 impl MySbSubscribersData {
     pub fn new() -> Self {
         Self {
             subscribers: HashMap::new(),
-            confirmation_sender: None,
-            confirmation_receiver: None,
         }
     }
 
@@ -36,7 +26,7 @@ impl MySbSubscribersData {
         topic_id: String,
         queue_id: String,
         queue_type: TopicQueueType,
-        tx: UnboundedSender<MySbDeliveryPackage>,
+        subscriber_callback: Arc<dyn SubscriberCallback + Sync + Send + 'static>,
     ) {
         if !self.subscribers.contains_key(topic_id.as_str()) {
             self.subscribers
@@ -52,66 +42,26 @@ impl MySbSubscribersData {
             );
         }
 
-        let item = SubscribeItem::new(topic_id, queue_id.to_string(), queue_type, tx);
+        let item = Subscriber::new(
+            topic_id,
+            queue_id.to_string(),
+            queue_type,
+            subscriber_callback,
+        );
 
         by_topic.insert(queue_id, item);
     }
 
-    pub fn new_messages(
+    pub fn get_callback(
         &self,
-        topic_id: String,
-        queue_id: String,
-        confirmation_id: i64,
-        connection_id: i64,
-        messages: Vec<TcpContractMessage>,
-    ) {
-        let by_topic = self.subscribers.get(topic_id.as_str());
+        topic_id: &str,
+        queue_id: &str,
+    ) -> Option<Arc<dyn SubscriberCallback + Sync + Send + 'static>> {
+        let by_topic = self.subscribers.get(topic_id)?;
 
-        if let Some(by_topic) = by_topic {
-            if let Some(subscriber) = by_topic.get(queue_id.as_str()) {
-                let msg = MySbDeliveryPackage {
-                    messages,
-                    confirmation_id,
-                    connection_id,
-                };
+        let subscriber = by_topic.get(queue_id)?;
 
-                let result = subscriber.tx.send(msg);
-
-                if let Err(err) = result {
-                    print!("Send Error: {}", err)
-                }
-            }
-        }
-    }
-
-    pub fn get_confirmations_sender(&mut self) -> Arc<ConfirmationSender> {
-        if let Some(confimations_sender) = &self.confirmation_sender {
-            return confimations_sender.clone();
-        }
-
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        self.confirmation_sender = Some(Arc::new(ConfirmationSender::new(tx)));
-
-        self.confirmation_receiver = Some(rx);
-
-        return self.confirmation_sender.as_ref().unwrap().clone();
-    }
-
-    pub fn get_confirmation_pair(
-        &mut self,
-    ) -> (
-        Option<Arc<ConfirmationSender>>,
-        Option<UnboundedReceiver<MySbDeliveryConfirmationEvent>>,
-    ) {
-        let mut new_result = None;
-        std::mem::swap(&mut new_result, &mut self.confirmation_receiver);
-
-        if new_result.is_none() {
-            return (None, None);
-        }
-
-        return (self.confirmation_sender.clone(), new_result);
+        return Some(subscriber.callback.clone());
     }
 
     pub fn get_subscribers(&self) -> Vec<MySbSubscriber> {

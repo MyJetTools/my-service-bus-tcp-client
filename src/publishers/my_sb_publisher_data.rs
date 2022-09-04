@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
-use my_service_bus_tcp_shared::TcpContract;
+use my_service_bus_tcp_shared::{MessageToPublishTcpContract, TcpContract};
+use my_tcp_sockets::ConnectionId;
 use rust_extensions::{TaskCompletion, TaskCompletionAwaiter};
+
+use crate::tcp::MessageToPublish;
 
 use super::{PublishError, PublishProcessByConnection};
 
@@ -28,7 +31,7 @@ impl MySbPublisherData {
     pub async fn publish_to_socket(
         &mut self,
         topic_id: &str,
-        payload: Vec<Vec<u8>>,
+        messages: Vec<MessageToPublish>,
     ) -> Result<TaskCompletionAwaiter<(), PublishError>, PublishError> {
         if self.connection.is_none() {
             return Err(PublishError::NoConnectionToPublish);
@@ -37,23 +40,23 @@ impl MySbPublisherData {
 
         let connection = self.connection.as_mut().unwrap();
 
+        let mut data_to_publish = Vec::new();
+
+        for msg in messages {
+            data_to_publish.push(MessageToPublishTcpContract {
+                headers: msg.headers,
+                content: msg.content,
+            })
+        }
+
         let payload = TcpContract::Publish {
             request_id,
             persist_immediately: false,
-            data_to_publish: payload,
+            data_to_publish,
             topic_id: topic_id.to_string(),
         };
 
-        let payload = payload.serialize();
-
-        let send_data_result = connection
-            .socket
-            .send_data_to_socket(payload.as_slice())
-            .await;
-
-        if let Err(err) = send_data_result {
-            return Err(PublishError::Other(err));
-        }
+        connection.socket.send(payload).await;
 
         let mut task = TaskCompletion::new();
         let awaiter = task.get_awaiter();
@@ -63,7 +66,7 @@ impl MySbPublisherData {
         Ok(awaiter)
     }
 
-    pub async fn confirm(&mut self, connection_id: i64, request_id: i64) {
+    pub async fn confirm(&mut self, connection_id: ConnectionId, request_id: i64) {
         if self.connection.is_none() {
             panic!(
                 "Can not confirm publish for connection with id {} and request_id {}. No Active Connection",

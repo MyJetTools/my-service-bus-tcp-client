@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
+use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
+use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionId};
 use tokio::sync::Mutex;
 
+use crate::tcp::MessageToPublish;
+
 use super::{MySbPublisherData, PublishError, PublishProcessByConnection};
-use crate::tcp::SocketConnection;
 use rust_extensions::TaskCompletionAwaiter;
 
 pub struct MySbPublishers {
@@ -17,12 +20,16 @@ impl MySbPublishers {
             data: Mutex::new(data),
         }
     }
-    pub async fn publish(&self, topic_id: &str, payload: Vec<u8>) -> Result<(), PublishError> {
+    pub async fn publish(
+        &self,
+        topic_id: &str,
+        message: MessageToPublish,
+    ) -> Result<(), PublishError> {
         let awaiter: TaskCompletionAwaiter<(), PublishError>;
         {
             let mut write_access = self.data.lock().await;
             awaiter = write_access
-                .publish_to_socket(topic_id, vec![payload])
+                .publish_to_socket(topic_id, vec![message])
                 .await?;
         }
         awaiter.get_result().await?;
@@ -33,24 +40,24 @@ impl MySbPublishers {
     pub async fn publish_chunk(
         &self,
         topic_id: &str,
-        payload: Vec<Vec<u8>>,
+        messages: Vec<MessageToPublish>,
     ) -> Result<(), PublishError> {
         let awaiter: TaskCompletionAwaiter<(), PublishError>;
         {
             let mut write_access = self.data.lock().await;
-            awaiter = write_access.publish_to_socket(topic_id, payload).await?;
+            awaiter = write_access.publish_to_socket(topic_id, messages).await?;
         }
         awaiter.get_result().await?;
 
         return Ok(());
     }
 
-    pub async fn publish_confirmed(&self, connection_id: i64, request_id: i64) {
+    pub async fn publish_confirmed(&self, connection_id: ConnectionId, request_id: i64) {
         let mut write_access = self.data.lock().await;
         write_access.confirm(connection_id, request_id).await;
     }
 
-    pub async fn new_connection(&self, ctx: Arc<SocketConnection>) {
+    pub async fn new_connection(&self, ctx: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>) {
         let mut write_access = self.data.lock().await;
 
         if let Some(current_connection) = &write_access.connection {
@@ -61,7 +68,7 @@ impl MySbPublishers {
         write_access.connection = Some(PublishProcessByConnection::new(ctx));
     }
 
-    pub async fn disconnect(&self, connection_id: i64) {
+    pub async fn disconnect(&self, connection_id: ConnectionId) {
         let mut write_access = self.data.lock().await;
 
         if let Some(current_connection) = &write_access.connection {
