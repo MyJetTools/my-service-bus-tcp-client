@@ -1,3 +1,8 @@
+### 0.1.7
+* Settings now are read on each reconection
+
+
+
 Add to Cargo.toml file
 
 ```toml

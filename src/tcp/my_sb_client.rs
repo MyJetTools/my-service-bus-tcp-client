@@ -7,12 +7,30 @@ use crate::subscribers::{MySbSubscribers, SubscriberCallback};
 use crate::MySbPublishers;
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::MySbTcpSerializer;
-use my_tcp_sockets::TcpClient;
+use my_tcp_sockets::{TcpClient, TcpClientSocketSettings};
 use rust_extensions::Logger;
 
 use super::incoming_events::IncomingTcpEvents;
+use super::MyServiceBusSettings;
 
 const TCP_CLIENT_NAME: &str = "MySbTcpClient";
+
+struct TcpConnectionSettings {
+    my_sb_settings: Arc<dyn MyServiceBusSettings + Send + Sync + 'static>,
+}
+
+impl TcpConnectionSettings {
+    pub fn new(my_sb_settings: Arc<dyn MyServiceBusSettings + Send + Sync + 'static>) -> Self {
+        Self { my_sb_settings }
+    }
+}
+
+#[async_trait::async_trait]
+impl TcpClientSocketSettings for TcpConnectionSettings {
+    async fn get_host_port(&self) -> String {
+        self.my_sb_settings.get_host_port().await
+    }
+}
 
 pub struct MessageToPublish {
     pub headers: Option<HashMap<String, String>>,
@@ -47,16 +65,18 @@ pub struct MyServiceBusClient {
 
 impl MyServiceBusClient {
     pub fn new(
-        host_port: &str,
         app_name: &str,
+        settings: Arc<dyn MyServiceBusSettings + Send + Sync + 'static>,
         logger: Arc<dyn Logger + Send + Sync + 'static>,
     ) -> Self {
+        let tcp_settings = TcpConnectionSettings::new(settings);
+
         Self {
             app_name: app_name.to_string(),
             client_version: get_client_version(),
             publishers: Arc::new(MySbPublishers::new()),
             subscribers: Arc::new(MySbSubscribers::new()),
-            tcp_client: TcpClient::new(TCP_CLIENT_NAME.to_string(), host_port.to_string()),
+            tcp_client: TcpClient::new(TCP_CLIENT_NAME.to_string(), Arc::new(tcp_settings)),
             logger,
             has_connection: Arc::new(AtomicBool::new(false)),
         }
