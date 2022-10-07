@@ -55,6 +55,21 @@ impl MySbPublishers {
 
         result
     }
+
+    async fn wait_until_connection_is_restored(&self) {
+        loop {
+            let has_connection = {
+                let read_access = self.data.lock().await;
+                read_access.connection.is_some()
+            };
+
+            if has_connection {
+                return;
+            }
+
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -63,92 +78,76 @@ impl MyServiceBusPublisherClient for MySbPublishers {
         &self,
         topic_id: &str,
         message: MessageToPublish,
+        do_retry: bool,
     ) -> Result<(), PublishError> {
-        return self.publish_messages(topic_id, vec![message]).await;
+        return self
+            .publish_messages(topic_id, vec![message], do_retry)
+            .await;
     }
 
     async fn publish_messages(
         &self,
         topic_id: &str,
         messages: Vec<MessageToPublish>,
-    ) -> Result<(), PublishError> {
-        let awaiter = {
-            let mut write_access = self.data.lock().await;
-
-            let (request_id, tcp_contract) = write_access
-                .compile_publish_payload(topic_id, messages)
-                .await?;
-
-            write_access
-                .publish_to_socket(&tcp_contract, request_id)
-                .await
-        };
-
-        awaiter.get_result().await
-    }
-
-    async fn publish_message_with_retries(
-        &self,
-        topic_id: &str,
-        message: MessageToPublish,
-        retries_amount: usize,
-        retry_delay: std::time::Duration,
-    ) -> Result<(), PublishError> {
-        self.publish_messages_with_retries(topic_id, vec![message], retries_amount, retry_delay)
-            .await
-    }
-
-    async fn publish_messages_with_retries(
-        &self,
-        topic_id: &str,
-        messages: Vec<MessageToPublish>,
-        retries_amount: usize,
-        retry_delay: std::time::Duration,
+        do_retries: bool,
     ) -> Result<(), PublishError> {
         let mut to_send = None;
         let mut messages = Some(messages);
-        let mut attempt_no = 0;
+
         loop {
-            if attempt_no > 0 {
-                tokio::time::sleep(retry_delay).await;
-            }
-
-            attempt_no += 1;
-
-            let awaiter = {
+            let result = {
                 let mut write_access = self.data.lock().await;
 
-                if to_send.is_none() {
+                let result = if to_send.is_none() {
                     let result = write_access
                         .compile_publish_payload(topic_id, messages.take().unwrap())
                         .await;
 
                     match result {
-                        Ok(result) => to_send = Some(result),
-                        Err(err) => {
-                            if attempt_no >= retries_amount {
-                                return Err(err);
-                            }
-                            continue;
+                        Ok(result) => {
+                            to_send = Some(result);
+                            Ok(())
                         }
+                        Err(err) => Err(err),
                     }
-                }
-                let (request_id, tcp_contract) = to_send.as_ref().unwrap();
+                } else {
+                    Ok(())
+                };
 
-                write_access
-                    .publish_to_socket(tcp_contract, *request_id)
-                    .await
+                match result {
+                    Ok(_) => {
+                        let (request_id, tcp_contract) = to_send.as_ref().unwrap();
+
+                        let awaiter = write_access
+                            .publish_to_socket(tcp_contract, *request_id)
+                            .await;
+
+                        awaiter.get_result().await
+                    }
+                    Err(err) => Err(err),
+                }
             };
 
-            match awaiter.get_result().await {
-                Ok(result) => {
-                    return Ok(result);
+            if !do_retries {
+                return result;
+            }
+
+            if result.is_ok() {
+                return Ok(());
+            }
+
+            match result.unwrap_err() {
+                PublishError::NoConnectionToPublish => {
+                    self.wait_until_connection_is_restored().await;
                 }
-                Err(err) => {
-                    if attempt_no >= retries_amount {
-                        return Err(err);
-                    }
-                    continue;
+                PublishError::Disconnected => {
+                    self.wait_until_connection_is_restored().await;
+                }
+                PublishError::Other(other) => {
+                    return Err(PublishError::Other(other));
+                }
+                PublishError::SerializationError(err) => {
+                    return Err(PublishError::SerializationError(err));
                 }
             }
         }

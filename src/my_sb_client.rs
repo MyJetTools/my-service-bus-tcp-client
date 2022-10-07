@@ -77,11 +77,13 @@ impl MyServiceBusClient {
         &self,
         topic_name: String,
         serializer: Arc<dyn MySbMessageSerializer<TContract> + Send + Sync + 'static>,
+        do_retries: bool,
     ) -> MyServiceBusPublisher<TContract> {
         my_service_bus_abstractions::MyServiceBusPublisher::new(
             topic_name,
             self.publishers.clone(),
             serializer,
+            do_retries,
         )
     }
 
