@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
+use my_service_bus_abstractions::{MessageToPublish, MyServiceBusPublisherClient, PublishError};
 use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionId};
 use tokio::sync::Mutex;
 
-use crate::tcp::MessageToPublish;
-
-use super::{MySbPublisherData, PublishError, PublishProcessByConnection};
+use super::{MySbPublisherData, PublishProcessByConnection};
 use rust_extensions::TaskCompletionAwaiter;
 
 pub struct MySbPublishers {
@@ -19,37 +18,6 @@ impl MySbPublishers {
         Self {
             data: Mutex::new(data),
         }
-    }
-    pub async fn publish(
-        &self,
-        topic_id: &str,
-        message: MessageToPublish,
-    ) -> Result<(), PublishError> {
-        let awaiter: TaskCompletionAwaiter<(), PublishError>;
-        {
-            let mut write_access = self.data.lock().await;
-            awaiter = write_access
-                .publish_to_socket(topic_id, vec![message])
-                .await?;
-        }
-        awaiter.get_result().await?;
-
-        return Ok(());
-    }
-
-    pub async fn publish_chunk(
-        &self,
-        topic_id: &str,
-        messages: Vec<MessageToPublish>,
-    ) -> Result<(), PublishError> {
-        let awaiter: TaskCompletionAwaiter<(), PublishError>;
-        {
-            let mut write_access = self.data.lock().await;
-            awaiter = write_access.publish_to_socket(topic_id, messages).await?;
-        }
-        awaiter.get_result().await?;
-
-        return Ok(());
     }
 
     pub async fn publish_confirmed(&self, connection_id: ConnectionId, request_id: i64) {
@@ -94,5 +62,40 @@ impl MySbPublishers {
         }
 
         result
+    }
+}
+
+#[async_trait::async_trait]
+impl MyServiceBusPublisherClient for MySbPublishers {
+    async fn publish_message(
+        &self,
+        topic_id: &str,
+        message: MessageToPublish,
+    ) -> Result<(), PublishError> {
+        let awaiter: TaskCompletionAwaiter<(), PublishError>;
+        {
+            let mut write_access = self.data.lock().await;
+            awaiter = write_access
+                .publish_to_socket(topic_id, vec![message])
+                .await?;
+        }
+        awaiter.get_result().await?;
+
+        return Ok(());
+    }
+
+    async fn publish_messages(
+        &self,
+        topic_id: &str,
+        messages: Vec<MessageToPublish>,
+    ) -> Result<(), PublishError> {
+        let awaiter: TaskCompletionAwaiter<(), PublishError>;
+        {
+            let mut write_access = self.data.lock().await;
+            awaiter = write_access.publish_to_socket(topic_id, messages).await?;
+        }
+        awaiter.get_result().await?;
+
+        return Ok(());
     }
 }

@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
+use my_service_bus_abstractions::{MessageToPublish, PublishError};
 use my_service_bus_tcp_shared::{MessageToPublishTcpContract, TcpContract};
 use my_tcp_sockets::ConnectionId;
 use rust_extensions::{TaskCompletion, TaskCompletionAwaiter};
 
-use crate::tcp::MessageToPublish;
-
-use super::{PublishError, PublishProcessByConnection};
+use super::PublishProcessByConnection;
 
 pub struct MySbPublisherData {
     request_id: i64,

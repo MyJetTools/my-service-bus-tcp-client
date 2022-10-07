@@ -1,16 +1,15 @@
-use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use crate::publishers::PublishError;
 use crate::subscribers::{MySbSubscribers, SubscriberCallback};
+use crate::tcp::IncomingTcpEvents;
 use crate::MySbPublishers;
+use my_service_bus_abstractions::{MySbMessageSerializer, MyServiceBusPublisher};
 use my_service_bus_shared::queue::TopicQueueType;
 use my_service_bus_tcp_shared::MySbTcpSerializer;
 use my_tcp_sockets::{TcpClient, TcpClientSocketSettings};
 use rust_extensions::Logger;
 
-use super::incoming_events::IncomingTcpEvents;
 use super::MyServiceBusSettings;
 
 const TCP_CLIENT_NAME: &str = "MySbTcpClient";
@@ -29,27 +28,6 @@ impl TcpConnectionSettings {
 impl TcpClientSocketSettings for TcpConnectionSettings {
     async fn get_host_port(&self) -> String {
         self.my_sb_settings.get_host_port().await
-    }
-}
-
-pub struct MessageToPublish {
-    pub headers: Option<HashMap<String, String>>,
-    pub content: Vec<u8>,
-}
-
-impl MessageToPublish {
-    pub fn new(content: Vec<u8>) -> Self {
-        Self {
-            headers: None,
-            content,
-        }
-    }
-
-    pub fn new_with_headers(content: Vec<u8>, headers: HashMap<String, String>) -> Self {
-        Self {
-            headers: Some(headers),
-            content,
-        }
     }
 }
 
@@ -86,7 +64,7 @@ impl MyServiceBusClient {
         self.tcp_client
             .start(
                 Arc::new(|| -> MySbTcpSerializer {
-                    let attrs = super::new_connection_handler::get_connection_attrs();
+                    let attrs = crate::tcp::new_connection_handler::get_connection_attrs();
                     MySbTcpSerializer::new(attrs)
                 }),
                 Arc::new(IncomingTcpEvents::new(self, self.has_connection.clone())),
@@ -95,22 +73,16 @@ impl MyServiceBusClient {
             .await;
     }
 
-    pub async fn publish(
+    pub async fn get_publisher<TContract>(
         &self,
-        topic_id: &str,
-        message: MessageToPublish,
-    ) -> Result<(), PublishError> {
-        self.publishers.publish(topic_id, message).await?;
-        Ok(())
-    }
-
-    pub async fn publish_chunk(
-        &self,
-        topic_id: &str,
-        messages: Vec<MessageToPublish>,
-    ) -> Result<(), PublishError> {
-        self.publishers.publish_chunk(topic_id, messages).await?;
-        Ok(())
+        topic_name: String,
+        serializer: Arc<dyn MySbMessageSerializer<TContract> + Send + Sync + 'static>,
+    ) -> MyServiceBusPublisher<TContract> {
+        my_service_bus_abstractions::MyServiceBusPublisher::new(
+            topic_name,
+            self.publishers.clone(),
+            serializer,
+        )
     }
 
     pub async fn create_topic_if_not_exists(&self, topic_id: String) {

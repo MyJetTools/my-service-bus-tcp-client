@@ -1,11 +1,12 @@
 [package]
 name = "my-service-bus-tcp-client"
-version = "0.1.7"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+my-service-bus-abstractions = { tag = "0.1.0", git = "https://github.com/MyJetTools/my-service-bus-abstractions.git" }
 my-service-bus-shared = { tag = "0.2.4", git = "https://github.com/MyJetTools/my-service-bus-shared.git" }
 my-service-bus-tcp-shared = { tag = "0.2.7", git = "https://github.com/MyJetTools/my-service-bus-tcp-shared.git" }
 my-tcp-sockets = { tag = "0.1.7", git = "https://github.com/MyJetTools/my-tcp-sockets.git" }
