@@ -2,11 +2,10 @@ use std::sync::Arc;
 
 use my_service_bus_abstractions::{MessageToPublish, MyServiceBusPublisherClient, PublishError};
 use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
-use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionId};
+use my_tcp_sockets::tcp_connection::SocketConnection;
 use tokio::sync::Mutex;
 
 use super::{MySbPublisherData, PublishProcessByConnection};
-use rust_extensions::TaskCompletionAwaiter;
 
 pub struct MySbPublishers {
     data: Mutex<MySbPublisherData>,
@@ -20,9 +19,9 @@ impl MySbPublishers {
         }
     }
 
-    pub async fn publish_confirmed(&self, connection_id: ConnectionId, request_id: i64) {
+    pub async fn set_confirmed(&self, request_id: i64) {
         let mut write_access = self.data.lock().await;
-        write_access.confirm(connection_id, request_id).await;
+        write_access.confirm(request_id).await;
     }
 
     pub async fn new_connection(&self, ctx: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>) {
@@ -36,16 +35,9 @@ impl MySbPublishers {
         write_access.connection = Some(PublishProcessByConnection::new(ctx));
     }
 
-    pub async fn disconnect(&self, connection_id: ConnectionId) {
+    pub async fn disconnect(&self) {
         let mut write_access = self.data.lock().await;
-
-        if let Some(current_connection) = &write_access.connection {
-            if current_connection.socket.id != connection_id {
-                panic!("We are trying to disconnect connection with Id {}, but currect connection has id {}", connection_id, current_connection.socket.id);
-            }
-        }
-
-        write_access.connection = None;
+        write_access.disconnect();
     }
 
     pub async fn create_topic_if_not_exists(&self, topic_id: String) {
@@ -72,16 +64,7 @@ impl MyServiceBusPublisherClient for MySbPublishers {
         topic_id: &str,
         message: MessageToPublish,
     ) -> Result<(), PublishError> {
-        let awaiter: TaskCompletionAwaiter<(), PublishError>;
-        {
-            let mut write_access = self.data.lock().await;
-            awaiter = write_access
-                .publish_to_socket(topic_id, vec![message])
-                .await?;
-        }
-        awaiter.get_result().await?;
-
-        return Ok(());
+        return self.publish_messages(topic_id, vec![message]).await;
     }
 
     async fn publish_messages(
@@ -89,13 +72,85 @@ impl MyServiceBusPublisherClient for MySbPublishers {
         topic_id: &str,
         messages: Vec<MessageToPublish>,
     ) -> Result<(), PublishError> {
-        let awaiter: TaskCompletionAwaiter<(), PublishError>;
-        {
+        let awaiter = {
             let mut write_access = self.data.lock().await;
-            awaiter = write_access.publish_to_socket(topic_id, messages).await?;
-        }
-        awaiter.get_result().await?;
 
-        return Ok(());
+            let (request_id, tcp_contract) = write_access
+                .compile_publish_payload(topic_id, messages)
+                .await?;
+
+            write_access
+                .publish_to_socket(&tcp_contract, request_id)
+                .await
+        };
+
+        awaiter.get_result().await
+    }
+
+    async fn publish_message_with_retries(
+        &self,
+        topic_id: &str,
+        message: MessageToPublish,
+        retries_amount: usize,
+        retry_delay: std::time::Duration,
+    ) -> Result<(), PublishError> {
+        self.publish_messages_with_retries(topic_id, vec![message], retries_amount, retry_delay)
+            .await
+    }
+
+    async fn publish_messages_with_retries(
+        &self,
+        topic_id: &str,
+        messages: Vec<MessageToPublish>,
+        retries_amount: usize,
+        retry_delay: std::time::Duration,
+    ) -> Result<(), PublishError> {
+        let mut to_send = None;
+        let mut messages = Some(messages);
+        let mut attempt_no = 0;
+        loop {
+            if attempt_no > 0 {
+                tokio::time::sleep(retry_delay).await;
+            }
+
+            attempt_no += 1;
+
+            let awaiter = {
+                let mut write_access = self.data.lock().await;
+
+                if to_send.is_none() {
+                    let result = write_access
+                        .compile_publish_payload(topic_id, messages.take().unwrap())
+                        .await;
+
+                    match result {
+                        Ok(result) => to_send = Some(result),
+                        Err(err) => {
+                            if attempt_no >= retries_amount {
+                                return Err(err);
+                            }
+                            continue;
+                        }
+                    }
+                }
+                let (request_id, tcp_contract) = to_send.as_ref().unwrap();
+
+                write_access
+                    .publish_to_socket(tcp_contract, *request_id)
+                    .await
+            };
+
+            match awaiter.get_result().await {
+                Ok(result) => {
+                    return Ok(result);
+                }
+                Err(err) => {
+                    if attempt_no >= retries_amount {
+                        return Err(err);
+                    }
+                    continue;
+                }
+            }
+        }
     }
 }

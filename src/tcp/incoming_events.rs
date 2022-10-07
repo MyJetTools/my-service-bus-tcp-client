@@ -44,13 +44,10 @@ impl IncomingTcpEvents {
             .store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
-    async fn handle_disconnected(
-        &self,
-        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
-    ) {
+    async fn handle_disconnected(&self, _: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>) {
         self.has_connection
             .store(false, std::sync::atomic::Ordering::SeqCst);
-        self.publishers.disconnect(connection.id).await;
+        self.publishers.disconnect().await;
     }
 
     pub async fn new_packet(
@@ -60,9 +57,7 @@ impl IncomingTcpEvents {
     ) {
         match contract {
             TcpContract::PublishResponse { request_id } => {
-                self.publishers
-                    .publish_confirmed(connection.id, request_id)
-                    .await;
+                self.publishers.set_confirmed(request_id).await;
             }
             TcpContract::NewMessages {
                 topic_id,

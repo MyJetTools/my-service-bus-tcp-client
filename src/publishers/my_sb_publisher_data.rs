@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use my_service_bus_abstractions::{MessageToPublish, PublishError};
 use my_service_bus_tcp_shared::{MessageToPublishTcpContract, TcpContract};
-use my_tcp_sockets::ConnectionId;
 use rust_extensions::{TaskCompletion, TaskCompletionAwaiter};
 
 use super::PublishProcessByConnection;
@@ -22,24 +21,23 @@ impl MySbPublisherData {
         }
     }
 
-    fn get_next_request_id(&mut self) -> i64 {
+    pub fn get_next_request_id(&mut self) -> i64 {
         self.request_id += 1;
         return self.request_id;
     }
 
-    pub async fn publish_to_socket(
+    pub async fn compile_publish_payload(
         &mut self,
         topic_id: &str,
         messages: Vec<MessageToPublish>,
-    ) -> Result<TaskCompletionAwaiter<(), PublishError>, PublishError> {
+    ) -> Result<(i64, TcpContract), PublishError> {
         if self.connection.is_none() {
             return Err(PublishError::NoConnectionToPublish);
         }
+
         let request_id = self.get_next_request_id();
 
-        let connection = self.connection.as_mut().unwrap();
-
-        let mut data_to_publish = Vec::new();
+        let mut data_to_publish = Vec::with_capacity(messages.len());
 
         for msg in messages {
             data_to_publish.push(MessageToPublishTcpContract {
@@ -48,49 +46,42 @@ impl MySbPublisherData {
             })
         }
 
-        let payload = TcpContract::Publish {
+        let result = TcpContract::Publish {
             request_id,
             persist_immediately: false,
             data_to_publish,
             topic_id: topic_id.to_string(),
         };
 
-        connection.socket.send(payload).await;
+        Ok((request_id, result))
+    }
+
+    pub async fn publish_to_socket(
+        &mut self,
+        tcp_contract: &TcpContract,
+        request_id: i64,
+    ) -> TaskCompletionAwaiter<(), PublishError> {
+        let connection = self.connection.as_mut().unwrap();
+
+        connection.socket.send_ref(tcp_contract).await;
 
         let mut task = TaskCompletion::new();
         let awaiter = task.get_awaiter();
 
         connection.requests.insert(request_id, task);
 
-        Ok(awaiter)
+        awaiter
     }
 
-    pub async fn confirm(&mut self, connection_id: ConnectionId, request_id: i64) {
-        if self.connection.is_none() {
-            panic!(
-                "Can not confirm publish for connection with id {} and request_id {}. No Active Connection",
-                connection_id, request_id
-            );
+    pub async fn confirm(&mut self, request_id: i64) {
+        if let Some(connection) = self.connection.as_mut() {
+            if let Some(mut request) = connection.requests.remove(&request_id) {
+                request.set_ok(());
+            }
         }
+    }
 
-        let connection = self.connection.as_mut().unwrap();
-
-        if connection.socket.id != connection_id {
-            panic!(
-                "We are handling publish confirmation for connection_id {}. But we found active connection id {}",
-                connection.socket.id, connection_id
-            );
-        }
-
-        let request = connection.requests.remove(&request_id);
-
-        if request.is_none() {
-            panic!(
-                "We are handling publish confirmation for connection_id {} with request_id {}. But now request with that ID",
-                 connection_id, request_id
-            );
-        }
-
-        request.unwrap().set_ok(());
+    pub fn disconnect(&mut self) {
+        self.connection = None;
     }
 }
