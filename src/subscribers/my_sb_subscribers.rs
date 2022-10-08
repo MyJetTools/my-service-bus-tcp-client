@@ -1,23 +1,24 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
-use my_service_bus_shared::queue::TopicQueueType;
-use my_service_bus_tcp_shared::{MessageToDeliverTcpContract, MySbTcpSerializer, TcpContract};
-use my_tcp_sockets::tcp_connection::SocketConnection;
-use rust_extensions::Logger;
-use tokio::sync::Mutex;
-
-use super::{
-    my_sb_subscribers_data::MySbSubscriber, MessagesReader, MySbSubscribersData, SubscriberCallback,
+use my_service_bus_abstractions::{
+    MySbMessage, MyServiceBusSubscriberClient, MyServiceBusSubscriberClientCallback,
 };
 
+use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
+
+use my_tcp_sockets::tcp_connection::SocketConnection;
+use tokio::sync::Mutex;
+
+use super::MySbSubscribersData;
+
 pub struct MySbSubscribers {
-    subscribers: Mutex<MySbSubscribersData>,
+    subscribers: Arc<Mutex<MySbSubscribersData>>,
 }
 
 impl MySbSubscribers {
     pub fn new() -> Self {
         Self {
-            subscribers: Mutex::new(MySbSubscribersData::new()),
+            subscribers: Arc::new(Mutex::new(MySbSubscribersData::new())),
         }
     }
 
@@ -25,11 +26,10 @@ impl MySbSubscribers {
         &self,
         topic_id: String,
         queue_id: String,
-        queue_type: TopicQueueType,
-        calback: Arc<dyn SubscriberCallback + Send + Sync + 'static>,
+        calback: Arc<dyn MyServiceBusSubscriberClientCallback + Send + Sync + 'static>,
     ) {
         let mut write_access = self.subscribers.lock().await;
-        write_access.add(topic_id, queue_id, queue_type, calback);
+        write_access.add(topic_id, queue_id, calback);
     }
 
     pub async fn new_messages(
@@ -37,9 +37,8 @@ impl MySbSubscribers {
         topic_id: String,
         queue_id: String,
         confirmation_id: i64,
-        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
-        messages: Vec<MessageToDeliverTcpContract>,
-        logger: Arc<dyn Logger + Send + Sync + 'static>,
+        connection_id: i32,
+        messages: Vec<MySbMessage>,
     ) {
         let callback = {
             let read_access = self.subscribers.lock().await;
@@ -47,50 +46,117 @@ impl MySbSubscribers {
         };
 
         if let Some(callback) = callback {
-            let messages_reader = MessagesReader::new(
-                topic_id,
-                queue_id,
-                messages,
-                confirmation_id,
-                connection,
-                logger.clone(),
-            );
-
-            tokio::spawn(new_messages_callback(messages_reader, callback, logger));
+            callback
+                .new_events(messages, confirmation_id, connection_id)
+                .await;
         }
     }
 
-    pub async fn get_subscribers(&self) -> Vec<MySbSubscriber> {
+    async fn get_subscribers(
+        &self,
+    ) -> Vec<Arc<dyn MyServiceBusSubscriberClientCallback + Send + Sync + 'static>> {
+        let mut result = Vec::new();
         let read_access = self.subscribers.lock().await;
-        read_access.get_subscribers()
+
+        for subscribers in read_access.subscribers.values() {
+            for subscriber in subscribers.values() {
+                result.push(subscriber.clone());
+            }
+        }
+
+        result
+    }
+
+    pub async fn new_connection(
+        &self,
+        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
+    ) {
+        {
+            let mut write_access = self.subscribers.lock().await;
+            write_access.connection = Some(connection.clone());
+        }
+
+        for subscriber in self.get_subscribers().await {
+            let packet = TcpContract::Subscribe {
+                topic_id: subscriber.get_topic_id().to_string(),
+                queue_id: subscriber.get_queue_id().to_string(),
+                queue_type: subscriber.get_queue_type(),
+            };
+
+            connection
+                .send_bytes(
+                    packet
+                        .serialize(crate::new_connection_handler::PROTOCOL_VERSION)
+                        .as_slice(),
+                )
+                .await;
+        }
+    }
+    pub async fn disconnect(&self) {
+        let mut write_access = self.subscribers.lock().await;
+        write_access.connection = None;
+    }
+
+    fn send_packet(&self, tcp_contract: TcpContract, connection_id: i32) {
+        let subscribers = self.subscribers.clone();
+
+        tokio::spawn(async move {
+            let connection = {
+                let access = subscribers.lock().await;
+                access.connection.clone()
+            };
+
+            if let Some(connection) = connection {
+                if connection.id == connection_id {
+                    connection.send(tcp_contract).await;
+                }
+            }
+        });
     }
 }
 
-async fn new_messages_callback(
-    messages_reader: MessagesReader,
-    callback: Arc<dyn SubscriberCallback + Sync + Send + 'static>,
-    logger: Arc<dyn Logger + Send + Sync + 'static>,
-) {
-    let topic_id = messages_reader.topic_id.to_string();
-    let queue_id = messages_reader.queue_id.to_string();
-    let confirmation_id = messages_reader.confirmation_id;
+impl MyServiceBusSubscriberClient for MySbSubscribers {
+    fn confirm_delivery(
+        &self,
+        topic_id: &str,
+        queue_id: &str,
+        confirmation_id: i64,
+        connection_id: i32,
+        delivered: bool,
+    ) {
+        let tcp_contract = if delivered {
+            TcpContract::NewMessagesConfirmation {
+                topic_id: topic_id.to_string(),
+                queue_id: queue_id.to_string(),
+                confirmation_id,
+            }
+        } else {
+            TcpContract::AllMessagesConfirmedAsFail {
+                topic_id: topic_id.to_string(),
+                queue_id: queue_id.to_string(),
+                confirmation_id,
+            }
+        };
 
-    let result = tokio::spawn(async move {
-        callback.new_events(messages_reader).await;
-    })
-    .await;
+        self.send_packet(tcp_contract, connection_id);
+    }
 
-    if let Err(err) = result {
-        let mut log_context = HashMap::new();
-        log_context.insert("ConfirmationId".to_string(), confirmation_id.to_string());
+    fn confirm_some_messages_ok(
+        &self,
+        topic_id: &str,
+        queue_id: &str,
+        confirmation_id: i64,
+        connection_id: i32,
+        delivered: Vec<my_service_bus_abstractions::queue_with_intervals::QueueIndexRange>,
+    ) {
+        let tcp_contract = TcpContract::ConfirmSomeMessagesAsOk {
+            topic_id: topic_id.to_string(),
+            queue_id: queue_id.to_string(),
+            confirmation_id,
+            packet_version: 0,
+            delivered,
+        };
 
-        log_context.insert("TopicId".to_string(), topic_id);
-        log_context.insert("QueueId".to_string(), queue_id);
-
-        logger.write_error(
-            "MySB Incoming messages".to_string(),
-            format!("{}", err),
-            Some(log_context),
-        )
+        self.send_packet(tcp_contract, connection_id);
     }
 }

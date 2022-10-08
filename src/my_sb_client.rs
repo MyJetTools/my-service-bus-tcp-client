@@ -1,11 +1,15 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use crate::subscribers::{MySbSubscribers, SubscriberCallback};
-use crate::tcp::IncomingTcpEvents;
-use crate::MySbPublishers;
-use my_service_bus_abstractions::{MySbMessageSerializer, MyServiceBusPublisher};
-use my_service_bus_shared::queue::TopicQueueType;
+use crate::publishers::MySbPublishers;
+use crate::subscribers::MySbSubscribers;
+
+use crate::TcpClientData;
+use my_service_bus_abstractions::publisher::{MySbMessageSerializer, MyServiceBusPublisher};
+use my_service_bus_abstractions::subscriber::MySbCallback;
+use my_service_bus_abstractions::subscriber::MySbMessageDeserializer;
+use my_service_bus_abstractions::subscriber::Subscriber;
+use my_service_bus_abstractions::subscriber::TopicQueueType;
 use my_service_bus_tcp_shared::MySbTcpSerializer;
 use my_tcp_sockets::{TcpClient, TcpClientSocketSettings};
 use rust_extensions::Logger;
@@ -32,31 +36,32 @@ impl TcpClientSocketSettings for TcpConnectionSettings {
 }
 
 pub struct MyServiceBusClient {
-    pub app_name: String,
-    pub client_version: String,
-    pub publishers: Arc<MySbPublishers>,
-    pub subscribers: Arc<MySbSubscribers>,
     pub tcp_client: TcpClient,
-    pub logger: Arc<dyn Logger + Send + Sync + 'static>,
-    has_connection: Arc<AtomicBool>,
+    data: Arc<TcpClientData>,
 }
 
 impl MyServiceBusClient {
     pub fn new(
         app_name: &str,
+        app_version: &str,
         settings: Arc<dyn MyServiceBusSettings + Send + Sync + 'static>,
         logger: Arc<dyn Logger + Send + Sync + 'static>,
     ) -> Self {
         let tcp_settings = TcpConnectionSettings::new(settings);
 
-        Self {
-            app_name: app_name.to_string(),
-            client_version: get_client_version(),
+        let data = TcpClientData {
             publishers: Arc::new(MySbPublishers::new()),
             subscribers: Arc::new(MySbSubscribers::new()),
-            tcp_client: TcpClient::new(TCP_CLIENT_NAME.to_string(), Arc::new(tcp_settings)),
             logger,
             has_connection: Arc::new(AtomicBool::new(false)),
+            app_name: app_name.to_string(),
+            app_version: app_version.to_string(),
+            client_version: get_client_version(),
+        };
+
+        Self {
+            tcp_client: TcpClient::new(TCP_CLIENT_NAME.to_string(), Arc::new(tcp_settings)),
+            data: Arc::new(data),
         }
     }
 
@@ -64,47 +69,60 @@ impl MyServiceBusClient {
         self.tcp_client
             .start(
                 Arc::new(|| -> MySbTcpSerializer {
-                    let attrs = crate::tcp::new_connection_handler::get_connection_attrs();
+                    let attrs = super::new_connection_handler::get_connection_attrs();
                     MySbTcpSerializer::new(attrs)
                 }),
-                Arc::new(IncomingTcpEvents::new(self, self.has_connection.clone())),
-                self.logger.clone(),
+                self.data.clone(),
+                self.data.logger.clone(),
             )
             .await;
     }
 
-    pub async fn get_publisher<TContract>(
+    pub async fn get_publisher<TContract: MySbMessageSerializer>(
         &self,
-        topic_name: String,
-        serializer: Arc<dyn MySbMessageSerializer<TContract> + Send + Sync + 'static>,
+        topic_id: String,
         do_retries: bool,
     ) -> MyServiceBusPublisher<TContract> {
-        my_service_bus_abstractions::MyServiceBusPublisher::new(
-            topic_name,
-            self.publishers.clone(),
-            serializer,
+        self.data
+            .publishers
+            .create_topic_if_not_exists(topic_id.clone())
+            .await;
+        MyServiceBusPublisher::new(
+            topic_id,
+            self.data.publishers.clone(),
             do_retries,
+            self.data.logger.clone(),
         )
     }
 
-    pub async fn create_topic_if_not_exists(&self, topic_id: String) {
-        self.publishers.create_topic_if_not_exists(topic_id).await;
-    }
-
-    pub async fn subscribe(
+    pub async fn subscribe<
+        TContract: MySbMessageDeserializer<Item = TContract> + Send + Sync + 'static,
+    >(
         &self,
         topic_id: String,
         queue_id: String,
         queue_type: TopicQueueType,
-        callback: Arc<dyn SubscriberCallback + Send + Sync + 'static>,
+        callback: Arc<dyn MySbCallback<TContract> + Send + Sync + 'static>,
     ) {
-        self.subscribers
-            .add(topic_id.clone(), queue_id.clone(), queue_type, callback)
+        let subscriber: Subscriber<TContract> = Subscriber::new(
+            topic_id.clone(),
+            queue_id.clone(),
+            queue_type,
+            callback,
+            self.data.logger.clone(),
+            self.data.subscribers.clone(),
+        );
+
+        let subscriber = Arc::new(subscriber);
+        self.data
+            .subscribers
+            .add(topic_id.clone(), queue_id.clone(), subscriber)
             .await;
     }
 
     pub fn has_connection(&self) -> bool {
-        self.has_connection
+        self.data
+            .has_connection
             .load(std::sync::atomic::Ordering::SeqCst)
     }
 }

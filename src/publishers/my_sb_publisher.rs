@@ -1,9 +1,13 @@
 use std::sync::Arc;
 
-use my_service_bus_abstractions::{MessageToPublish, MyServiceBusPublisherClient, PublishError};
+use my_service_bus_abstractions::{
+    publisher::MessageToPublish, MyServiceBusPublisherClient, PublishError,
+};
 use my_service_bus_tcp_shared::{MySbTcpSerializer, TcpContract};
 use my_tcp_sockets::tcp_connection::SocketConnection;
 use tokio::sync::Mutex;
+
+use crate::new_connection_handler::PROTOCOL_VERSION;
 
 use super::{MySbPublisherData, PublishProcessByConnection};
 
@@ -24,15 +28,22 @@ impl MySbPublishers {
         write_access.confirm(request_id).await;
     }
 
-    pub async fn new_connection(&self, ctx: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>) {
-        let mut write_access = self.data.lock().await;
-
-        if let Some(current_connection) = &write_access.connection {
-            panic!("We are trying to insert new connection with Id {}, but we have connection {} not disconnected", 
-            ctx.id,  current_connection.socket.id,);
+    pub async fn new_connection(
+        &self,
+        connection: Arc<SocketConnection<TcpContract, MySbTcpSerializer>>,
+    ) {
+        {
+            let mut write_access = self.data.lock().await;
+            write_access.connection = Some(PublishProcessByConnection::new(connection.clone()));
         }
 
-        write_access.connection = Some(PublishProcessByConnection::new(ctx));
+        for topic_id in self.get_topics_to_create().await {
+            let packet = TcpContract::CreateTopicIfNotExists { topic_id };
+
+            connection
+                .send_bytes(packet.serialize(PROTOCOL_VERSION).as_slice())
+                .await;
+        }
     }
 
     pub async fn disconnect(&self) {

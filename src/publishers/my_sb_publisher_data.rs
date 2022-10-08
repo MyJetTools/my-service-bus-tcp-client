@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use my_service_bus_abstractions::{MessageToPublish, PublishError};
-use my_service_bus_tcp_shared::{MessageToPublishTcpContract, TcpContract};
+use my_service_bus_abstractions::{publisher::MessageToPublish, PublishError};
+use my_service_bus_tcp_shared::TcpContract;
 use rust_extensions::{TaskCompletion, TaskCompletionAwaiter};
 
 use super::PublishProcessByConnection;
@@ -40,7 +40,7 @@ impl MySbPublisherData {
         let mut data_to_publish = Vec::with_capacity(messages.len());
 
         for msg in messages {
-            data_to_publish.push(MessageToPublishTcpContract {
+            data_to_publish.push(MessageToPublish {
                 headers: msg.headers,
                 content: msg.content,
             })
