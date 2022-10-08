@@ -8,10 +8,11 @@ pub const PROTOCOL_VERSION: i32 = 3;
 pub async fn send_greeting(
     socket_ctx: &SocketConnection<TcpContract, MySbTcpSerializer>,
     app_name: &str,
+    app_version: &str,
     client_version: &str,
 ) {
     let greeting = TcpContract::Greeting {
-        name: format!("{};{}", app_name, client_version),
+        name: format!("{}:{};{}", app_name, app_version, client_version),
         protocol_version: PROTOCOL_VERSION,
     };
 

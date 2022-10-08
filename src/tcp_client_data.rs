@@ -62,6 +62,7 @@ impl my_tcp_sockets::SocketEventCallback<my_service_bus_tcp_shared::TcpContract,
                 super::new_connection_handler::send_greeting(
                     &connection,
                     self.app_name.as_str(),
+                    self.app_version.as_str(),
                     self.client_version.as_str(),
                 )
                 .await;
