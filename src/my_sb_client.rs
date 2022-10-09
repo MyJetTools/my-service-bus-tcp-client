@@ -10,6 +10,7 @@ use my_service_bus_abstractions::subscriber::MySbCallback;
 use my_service_bus_abstractions::subscriber::MySbMessageDeserializer;
 use my_service_bus_abstractions::subscriber::Subscriber;
 use my_service_bus_abstractions::subscriber::TopicQueueType;
+use my_service_bus_abstractions::GetMySbModelTopicId;
 use my_service_bus_tcp_shared::MySbTcpSerializer;
 use my_tcp_sockets::{TcpClient, TcpClientSocketSettings};
 use rust_extensions::Logger;
@@ -78,17 +79,17 @@ impl MyServiceBusClient {
             .await;
     }
 
-    pub async fn get_publisher<TContract: MySbMessageSerializer>(
+    pub async fn get_publisher<TModel: MySbMessageSerializer + GetMySbModelTopicId>(
         &self,
-        topic_id: String,
         do_retries: bool,
-    ) -> MyServiceBusPublisher<TContract> {
+    ) -> MyServiceBusPublisher<TModel> {
+        let topic_id = TModel::get_topic_id();
         self.data
             .publishers
-            .create_topic_if_not_exists(topic_id.clone())
+            .create_topic_if_not_exists(topic_id.to_string())
             .await;
         MyServiceBusPublisher::new(
-            topic_id,
+            topic_id.to_string(),
             self.data.publishers.clone(),
             do_retries,
             self.data.logger.clone(),
@@ -96,16 +97,16 @@ impl MyServiceBusClient {
     }
 
     pub async fn subscribe<
-        TContract: MySbMessageDeserializer<Item = TContract> + Send + Sync + 'static,
+        TModel: GetMySbModelTopicId + MySbMessageDeserializer<Item = TModel> + Send + Sync + 'static,
     >(
         &self,
-        topic_id: String,
         queue_id: String,
         queue_type: TopicQueueType,
-        callback: Arc<dyn MySbCallback<TContract> + Send + Sync + 'static>,
+        callback: Arc<dyn MySbCallback<TModel> + Send + Sync + 'static>,
     ) {
-        let subscriber: Subscriber<TContract> = Subscriber::new(
-            topic_id.clone(),
+        let topic_id = TModel::get_topic_id();
+        let subscriber: Subscriber<TModel> = Subscriber::new(
+            topic_id.to_string(),
             queue_id.clone(),
             queue_type,
             callback,
@@ -116,7 +117,7 @@ impl MyServiceBusClient {
         let subscriber = Arc::new(subscriber);
         self.data
             .subscribers
-            .add(topic_id.clone(), queue_id.clone(), subscriber)
+            .add(topic_id.to_string(), queue_id.clone(), subscriber)
             .await;
     }
 

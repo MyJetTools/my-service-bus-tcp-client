@@ -17,7 +17,7 @@ pub struct TcpClientData {
 }
 
 impl TcpClientData {
-    pub async fn new_packet(
+    pub async fn new_incoming_data(
         &self,
         connection: Arc<
             my_tcp_sockets::tcp_connection::SocketConnection<
@@ -84,7 +84,7 @@ impl my_tcp_sockets::SocketEventCallback<my_service_bus_tcp_shared::TcpContract,
             ConnectionEvent::Payload {
                 connection,
                 payload,
-            } => self.new_packet(connection, payload).await,
+            } => self.new_incoming_data(connection, payload).await,
         }
     }
 }
