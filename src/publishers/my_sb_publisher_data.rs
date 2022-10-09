@@ -41,27 +41,6 @@ impl MySbPublisherData {
             TcpContract::compile_publish_payload(topic_id, request_id, messages, false, 3);
 
         Ok((request_id, TcpContract::Raw(tcp_contract)))
-
-        /*
-
-        let mut data_to_publish = Vec::with_capacity(messages.len());
-
-        for msg in messages {
-            data_to_publish.push(MessageToPublish {
-                headers: msg.headers,
-                content: msg.content,
-            })
-        }
-
-        let result = TcpContract::Publish {
-            request_id,
-            persist_immediately: false,
-            data_to_publish,
-            topic_id: topic_id.to_string(),
-        };
-
-        Ok((request_id, result))
-         */
     }
 
     pub async fn publish_to_socket(
