@@ -101,7 +101,6 @@ impl MyServiceBusPublisherClient for MySbPublishers {
         do_retries: bool,
     ) -> Result<(), PublishError> {
         let mut to_send = None;
-        let mut messages = Some(messages);
 
         loop {
             let result = {
@@ -109,7 +108,7 @@ impl MyServiceBusPublisherClient for MySbPublishers {
 
                 let result = if to_send.is_none() {
                     let result = write_access
-                        .compile_publish_payload(topic_id, messages.take().unwrap())
+                        .compile_publish_payload(topic_id, messages)
                         .await;
 
                     match result {
