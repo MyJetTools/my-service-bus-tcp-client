@@ -78,6 +78,8 @@ impl MySbPublishers {
                 return;
             }
 
+            println!("Trying to restore connection");
+
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     }
