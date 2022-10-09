@@ -37,23 +37,8 @@ impl MySbPublisherData {
 
         let request_id = self.get_next_request_id();
 
-        let protocol_version = 3;
-        /*
-        for msg in messages {
-            if msg.headers.is_some() {
-                protocol_version = 3;
-                break;
-            }
-        }
-         */
-
-        let tcp_contract = TcpContract::compile_publish_payload(
-            topic_id,
-            request_id,
-            messages,
-            false,
-            protocol_version,
-        );
+        let tcp_contract =
+            TcpContract::compile_publish_payload(topic_id, request_id, messages, false, 3);
 
         Ok((request_id, TcpContract::Raw(tcp_contract)))
 
