@@ -91,15 +91,13 @@ impl MyServiceBusPublisherClient for MySbPublishers {
         message: MessageToPublish,
         do_retry: bool,
     ) -> Result<(), PublishError> {
-        return self
-            .publish_messages(topic_id, vec![message], do_retry)
-            .await;
+        return self.publish_messages(topic_id, &[message], do_retry).await;
     }
 
     async fn publish_messages(
         &self,
         topic_id: &str,
-        messages: Vec<MessageToPublish>,
+        messages: &[MessageToPublish],
         do_retries: bool,
     ) -> Result<(), PublishError> {
         let mut to_send = None;

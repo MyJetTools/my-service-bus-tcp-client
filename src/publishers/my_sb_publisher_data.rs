@@ -29,13 +29,33 @@ impl MySbPublisherData {
     pub async fn compile_publish_payload(
         &mut self,
         topic_id: &str,
-        messages: Vec<MessageToPublish>,
+        messages: &[MessageToPublish],
     ) -> Result<(i64, TcpContract), PublishError> {
         if self.connection.is_none() {
             return Err(PublishError::NoConnectionToPublish);
         }
 
         let request_id = self.get_next_request_id();
+
+        let mut protocol_version = 2;
+        for msg in messages {
+            if msg.headers.is_some() {
+                protocol_version = 3;
+                break;
+            }
+        }
+
+        let tcp_contract = TcpContract::compile_publish_payload(
+            topic_id,
+            request_id,
+            messages,
+            false,
+            protocol_version,
+        );
+
+        Ok((request_id, TcpContract::Raw(tcp_contract)))
+
+        /*
 
         let mut data_to_publish = Vec::with_capacity(messages.len());
 
@@ -54,6 +74,7 @@ impl MySbPublisherData {
         };
 
         Ok((request_id, result))
+         */
     }
 
     pub async fn publish_to_socket(

@@ -5,7 +5,9 @@ use crate::publishers::MySbPublishers;
 use crate::subscribers::MySbSubscribers;
 
 use crate::TcpClientData;
-use my_service_bus_abstractions::publisher::{MySbMessageSerializer, MyServiceBusPublisher};
+use my_service_bus_abstractions::publisher::{
+    MySbMessageSerializer, MyServiceBusPublisher, PublisherWithInternalQueue,
+};
 use my_service_bus_abstractions::subscriber::MySbCallback;
 use my_service_bus_abstractions::subscriber::MySbMessageDeserializer;
 use my_service_bus_abstractions::subscriber::Subscriber;
@@ -92,6 +94,23 @@ impl MyServiceBusClient {
             topic_id.to_string(),
             self.data.publishers.clone(),
             do_retries,
+            self.data.logger.clone(),
+        )
+    }
+
+    pub async fn get_publisher_with_internal_queue<
+        TModel: MySbMessageSerializer + GetMySbModelTopicId,
+    >(
+        &self,
+    ) -> PublisherWithInternalQueue<TModel> {
+        let topic_id = TModel::get_topic_id();
+        self.data
+            .publishers
+            .create_topic_if_not_exists(topic_id.to_string())
+            .await;
+        PublisherWithInternalQueue::new(
+            topic_id.to_string(),
+            self.data.publishers.clone(),
             self.data.logger.clone(),
         )
     }
