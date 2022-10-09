@@ -105,7 +105,7 @@ impl MyServiceBusPublisherClient for MySbPublishers {
         let mut to_send = None;
 
         loop {
-            let result = {
+            let awaiter_result = {
                 let mut write_access = self.data.lock().await;
 
                 let result = if to_send.is_none() {
@@ -132,11 +132,20 @@ impl MyServiceBusPublisherClient for MySbPublishers {
                             .publish_to_socket(tcp_contract, *request_id)
                             .await;
 
-                        return awaiter.get_result().await;
+                        Ok(awaiter)
                     }
                     Err(err) => Err(err),
                 }
             };
+
+            let result = match awaiter_result {
+                Ok(awaiter) => awaiter.get_result().await,
+                Err(err) => Err(err),
+            };
+
+            if result.is_ok() {
+                return Ok(());
+            }
 
             if !do_retries {
                 return result;
