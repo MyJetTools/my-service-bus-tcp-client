@@ -37,13 +37,15 @@ impl MySbPublisherData {
 
         let request_id = self.get_next_request_id();
 
-        let mut protocol_version = 2;
+        let protocol_version = 3;
+        /*
         for msg in messages {
             if msg.headers.is_some() {
                 protocol_version = 3;
                 break;
             }
         }
+         */
 
         let tcp_contract = TcpContract::compile_publish_payload(
             topic_id,
