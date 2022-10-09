@@ -132,7 +132,7 @@ impl MyServiceBusPublisherClient for MySbPublishers {
                             .publish_to_socket(tcp_contract, *request_id)
                             .await;
 
-                        awaiter.get_result().await
+                        return awaiter.get_result().await;
                     }
                     Err(err) => Err(err),
                 }
