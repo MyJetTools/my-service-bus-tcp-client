@@ -8,9 +8,9 @@ use crate::TcpClientData;
 use my_service_bus_abstractions::publisher::{
     MySbMessageSerializer, MyServiceBusPublisher, PublisherWithInternalQueue,
 };
-use my_service_bus_abstractions::subscriber::MySbCallback;
 use my_service_bus_abstractions::subscriber::MySbMessageDeserializer;
 use my_service_bus_abstractions::subscriber::Subscriber;
+use my_service_bus_abstractions::subscriber::SubscriberCallback;
 use my_service_bus_abstractions::subscriber::TopicQueueType;
 use my_service_bus_abstractions::GetMySbModelTopicId;
 use my_service_bus_tcp_shared::MySbTcpSerializer;
@@ -121,7 +121,7 @@ impl MyServiceBusClient {
         &self,
         queue_id: String,
         queue_type: TopicQueueType,
-        callback: Arc<dyn MySbCallback<TModel> + Send + Sync + 'static>,
+        callback: Arc<dyn SubscriberCallback<TModel> + Send + Sync + 'static>,
     ) {
         let topic_id = TModel::get_topic_id();
         let subscriber: Subscriber<TModel> = Subscriber::new(
