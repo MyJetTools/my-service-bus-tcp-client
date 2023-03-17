@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 my-service-bus-abstractions = { tag = "0.1.1", git = "https://github.com/MyJetTools/my-service-bus-abstractions.git" }
-my-service-bus-shared = { tag = "0.3.1", git = "https://github.com/MyJetTools/my-service-bus-shared.git" }
+my-service-bus-shared = { tag = "0.3.2", git = "https://github.com/MyJetTools/my-service-bus-shared.git" }
 my-service-bus-tcp-shared = { tag = "0.3.1", git = "https://github.com/MyJetTools/my-service-bus-tcp-shared.git" }
 my-tcp-sockets = { tag = "0.1.7", git = "https://github.com/MyJetTools/my-tcp-sockets.git" }
 rust-extensions = { tag = "0.1.3", git = "https://github.com/MyJetTools/rust-extensions.git" }
