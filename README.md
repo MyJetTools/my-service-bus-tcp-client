@@ -10,8 +10,8 @@ Add to Cargo.toml file
 
 ```toml
 [dependencies]
-my-service-bus-tcp-client = { branch = "main", git = "https://github.com/MyJetTools/my-service-bus-tcp-client.git" }
-my-service-bus-shared = { branch = "main", git = "https://github.com/MyJetTools/my-service-bus-shared.git" }
+my-service-bus-tcp-client = { tag = "xxx", git = "https://github.com/MyJetTools/my-service-bus-tcp-client.git" }
+my-service-bus-shared = { tag = "xxx", git = "https://github.com/MyJetTools/my-service-bus-shared.git" }
 
 tokio = { version = "*", features = ["full"] }
 tokio-util = "*"
