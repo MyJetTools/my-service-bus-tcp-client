@@ -10,7 +10,7 @@ tokio = { version = "*", features = ["full"] }
 tokio-util = "*"
 ```
 
-Setup MySbConnection Settings Reader
+Setup MySbConnection Settings Reader. MyServiceBus will use the trait MyServiceBusSettings each time connection has to be established...
 
 ```rust
 
