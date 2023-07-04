@@ -1,10 +1,3 @@
-### 0.1.7
-* Settings now are read on each reconection
-
-### 0.2.0
-* Now we have publish retries;
-* We have publisher system;
-
 
 Add to Cargo.toml file
 
@@ -39,7 +32,7 @@ impl MyServiceBusSettings for SettingsReader {
 }
 
 
-```rust
+```
 
 
 Code Example - how to publish messages:
