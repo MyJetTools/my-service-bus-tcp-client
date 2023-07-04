@@ -17,6 +17,30 @@ tokio = { version = "*", features = ["full"] }
 tokio-util = "*"
 ```
 
+Setup MySbConnection Settings Reader
+
+```rust
+
+
+#[derive(my_settings_reader::SettingsModel, Serialize, Deserialize, Debug, Clone)]
+pub struct SettingsModel {
+    ....
+
+    #[serde(rename = "MySb")]
+    pub my_sb: String,
+}
+
+#[async_trait::async_trait]
+impl MyServiceBusSettings for SettingsReader {
+    async fn get_host_port(&self) -> String {
+        let read_access = self.settings.read().await;
+        read_access.my_sb.clone()
+    }
+}
+
+
+```rust
+
 
 Code Example - how to publish messages:
 
