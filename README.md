@@ -1,20 +1,37 @@
-### 0.1.7
-* Settings now are read on each reconection
-
-### 0.2.0
-* Now we have publish retries;
-* We have publisher system;
-
 
 Add to Cargo.toml file
 
 ```toml
 [dependencies]
-my-service-bus-tcp-client = { branch = "main", git = "https://github.com/MyJetTools/my-service-bus-tcp-client.git" }
-my-service-bus-shared = { branch = "main", git = "https://github.com/MyJetTools/my-service-bus-shared.git" }
+my-service-bus-tcp-client = { tag = "xxx", git = "https://github.com/MyJetTools/my-service-bus-tcp-client.git" }
+my-service-bus-shared = { tag = "xxx", git = "https://github.com/MyJetTools/my-service-bus-shared.git" }
 
 tokio = { version = "*", features = ["full"] }
 tokio-util = "*"
+```
+
+Setup MySbConnection Settings Reader. MyServiceBus will use the trait MyServiceBusSettings each time connection has to be established...
+
+```rust
+
+
+#[derive(my_settings_reader::SettingsModel, Serialize, Deserialize, Debug, Clone)]
+pub struct SettingsModel {
+    ....
+
+    #[serde(rename = "MySb")]
+    pub my_sb: String,
+}
+
+#[async_trait::async_trait]
+impl MyServiceBusSettings for SettingsReader {
+    async fn get_host_port(&self) -> String {
+        let read_access = self.settings.read().await;
+        read_access.my_sb.clone()
+    }
+}
+
+
 ```
 
 
