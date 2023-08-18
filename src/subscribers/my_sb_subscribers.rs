@@ -24,12 +24,12 @@ impl MySbSubscribers {
 
     pub async fn add(
         &self,
-        topic_id: String,
+        topic_id: &'static str,
         queue_id: String,
-        calback: Arc<dyn MyServiceBusSubscriberClientCallback + Send + Sync + 'static>,
+        callback: Arc<dyn MyServiceBusSubscriberClientCallback + Send + Sync + 'static>,
     ) {
         let mut write_access = self.subscribers.lock().await;
-        write_access.add(topic_id, queue_id, calback);
+        write_access.add(topic_id, queue_id, callback);
     }
 
     pub async fn new_messages(

@@ -15,7 +15,7 @@ use my_service_bus_abstractions::subscriber::TopicQueueType;
 use my_service_bus_abstractions::GetMySbModelTopicId;
 use my_service_bus_tcp_shared::MySbTcpSerializer;
 use my_tcp_sockets::{TcpClient, TcpClientSocketSettings};
-use rust_extensions::Logger;
+use rust_extensions::{Logger, StrOrString};
 
 use super::MyServiceBusSettings;
 
@@ -45,8 +45,8 @@ pub struct MyServiceBusClient {
 
 impl MyServiceBusClient {
     pub fn new(
-        app_name: &str,
-        app_version: &str,
+        app_name: impl Into<StrOrString<'static>>,
+        app_version: impl Into<StrOrString<'static>>,
         settings: Arc<dyn MyServiceBusSettings + Send + Sync + 'static>,
         logger: Arc<dyn Logger + Send + Sync + 'static>,
     ) -> Self {
@@ -57,8 +57,8 @@ impl MyServiceBusClient {
             subscribers: Arc::new(MySbSubscribers::new()),
             logger,
             has_connection: Arc::new(AtomicBool::new(false)),
-            app_name: app_name.to_string(),
-            app_version: app_version.to_string(),
+            app_name: app_name.into(),
+            app_version: app_version.into(),
             client_version: get_client_version(),
         };
 
@@ -119,13 +119,15 @@ impl MyServiceBusClient {
         TModel: GetMySbModelTopicId + MySbMessageDeserializer<Item = TModel> + Send + Sync + 'static,
     >(
         &self,
-        queue_id: String,
+        queue_id: impl Into<StrOrString<'static>>,
         queue_type: TopicQueueType,
         callback: Arc<dyn SubscriberCallback<TModel> + Send + Sync + 'static>,
     ) {
         let topic_id = TModel::get_topic_id();
+        let queue_id: StrOrString<'static> = queue_id.into();
+
         let subscriber: Subscriber<TModel> = Subscriber::new(
-            topic_id.to_string(),
+            topic_id.into(),
             queue_id.clone(),
             queue_type,
             callback,
@@ -136,7 +138,7 @@ impl MyServiceBusClient {
         let subscriber = Arc::new(subscriber);
         self.data
             .subscribers
-            .add(topic_id.to_string(), queue_id.clone(), subscriber)
+            .add(topic_id, queue_id.to_string(), subscriber)
             .await;
     }
 

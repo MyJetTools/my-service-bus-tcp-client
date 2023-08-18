@@ -6,7 +6,7 @@ use my_tcp_sockets::tcp_connection::SocketConnection;
 
 pub struct MySbSubscribersData {
     pub subscribers: HashMap<
-        String,
+        &'static str,
         HashMap<String, Arc<dyn MyServiceBusSubscriberClientCallback + Send + Sync + 'static>>,
     >,
     pub connection: Option<Arc<SocketConnection<TcpContract, MySbTcpSerializer>>>,
@@ -22,16 +22,15 @@ impl MySbSubscribersData {
 
     pub fn add(
         &mut self,
-        topic_id: String,
+        topic_id: &'static str,
         queue_id: String,
         subscriber_callback: Arc<dyn MyServiceBusSubscriberClientCallback + Sync + Send + 'static>,
     ) {
-        if !self.subscribers.contains_key(topic_id.as_str()) {
-            self.subscribers
-                .insert(topic_id.to_string(), HashMap::new());
+        if !self.subscribers.contains_key(topic_id) {
+            self.subscribers.insert(topic_id, HashMap::new());
         }
 
-        let by_topic = self.subscribers.get_mut(topic_id.as_str()).unwrap();
+        let by_topic = self.subscribers.get_mut(topic_id).unwrap();
 
         if by_topic.contains_key(queue_id.as_str()) {
             panic!(

@@ -2,13 +2,13 @@ use std::sync::{atomic::AtomicBool, Arc};
 
 use my_service_bus_tcp_shared::MySbTcpSerializer;
 use my_tcp_sockets::ConnectionEvent;
-use rust_extensions::Logger;
+use rust_extensions::{Logger, StrOrString};
 
 use crate::{publishers::MySbPublishers, subscribers::MySbSubscribers};
 
 pub struct TcpClientData {
-    pub app_name: String,
-    pub app_version: String,
+    pub app_name: StrOrString<'static>,
+    pub app_version: StrOrString<'static>,
     pub client_version: String,
     pub publishers: Arc<MySbPublishers>,
     pub subscribers: Arc<MySbSubscribers>,
